@@ -1,0 +1,14 @@
+[Unit]
+Description=Keenetic DNS Routes (legacy DNS-based routing)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/keenetic-dns-routes
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/keenetic-dns-routes/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

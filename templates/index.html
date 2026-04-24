@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Keenetic DNS Routes</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--bg:#0a0a0b;--card:#161618;--bd:#2a2a2e;--tx:#f4f4f5;--mu:#71717a;--ac:#3b82f6;--ok:#22c55e;--er:#ef4444}
+    body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+    .hdr{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .hdr h1{font-size:17px;font-weight:800}
+    .hdr small{color:var(--mu);font-weight:500}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+    .tabs{display:flex;gap:6px;margin-bottom:16px}
+    .tab{padding:8px 18px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--mu);font-weight:600;cursor:pointer;font-size:13px}
+    .tab.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+    .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:18px;margin-bottom:16px}
+    .card h2{font-size:14px;margin-bottom:10px}
+    label{display:block;font-size:11px;color:var(--mu);margin-bottom:4px;font-weight:600}
+    input[type=text],input[type=url],input[type=password],textarea{width:100%;background:#111;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;color:var(--tx);font-size:13px;font-family:inherit}
+    textarea{min-height:220px;font-family:ui-monospace,monospace;font-size:12px;line-height:1.45;resize:vertical}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+    .row > div{flex:1;min-width:200px}
+    .btn{padding:9px 18px;border-radius:10px;border:none;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+    .btn-b{background:var(--ac);color:#fff}
+    .btn-g{background:var(--ok);color:#0a0a0b}
+    .btn-d{background:#3f3f46;color:#fff}
+    .btn-o{background:#ea580c;color:#fff}
+    .tbl{width:100%;border-collapse:collapse;font-size:13px}
+    .tbl th,.tbl td{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left}
+    .tbl th{color:var(--mu);font-size:11px;text-transform:uppercase}
+    .log{margin-top:10px;padding:12px;background:#111;border-radius:10px;font-size:12px;white-space:pre-wrap;max-height:240px;overflow-y:auto;display:none}
+    .log.show{display:block}
+    .pill{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}
+    .pill.ok{background:rgba(34,197,94,.15);color:var(--ok)}
+    .pill.bad{background:rgba(239,68,68,.15);color:var(--er)}
+    #auth-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;align-items:center;justify-content:center}
+    #auth-bg.on{display:flex}
+    #auth-box{background:var(--card);border:1px solid var(--bd);padding:28px;border-radius:16px;width:min(360px,92vw)}
+  </style>
+</head>
+<body>
+<div id="auth-bg" class="on"><div id="auth-box">
+  <h2 style="margin-bottom:12px;font-size:18px">Keenetic DNS Routes</h2>
+  <label>Пароль веб-интерфейса</label>
+  <input type="password" id="apw" autocomplete="current-password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()"/>
+  <div id="aerr" style="color:var(--er);font-size:12px;margin-bottom:8px;display:none"></div>
+  <button class="btn btn-b" style="width:100%" onclick="doLogin()">Войти</button>
+</div></div>
+
+<div class="hdr">
+  <div><h1>Keenetic DNS Routes</h1><small>Списки DNS-маршрутизации (без Neo) · порт 8001</small></div>
+  <button class="btn btn-d" onclick="logout()">Выйти</button>
+</div>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab on" data-t="US" onclick="setTab('US')">Список US</button>
+    <button class="tab" data-t="RU" onclick="setTab('RU')">Список RU</button>
+  </div>
+
+  <div class="card" id="panel-US">
+    <h2>US — домены и IP/CIDR (одна строка = одна запись)</h2>
+    <div class="row">
+      <div><label>Interface ID (например Wireguard0, PPPoE0)</label>
+        <input type="text" id="if-US" placeholder="Wireguard0"/></div>
+    </div>
+    <textarea id="tx-US" placeholder="youtube.com&#10;1.2.3.0/24"></textarea>
+  </div>
+  <div class="card" id="panel-RU" style="display:none">
+    <h2>RU — домены и IP/CIDR</h2>
+    <div class="row">
+      <div><label>Interface ID (например GigabitEthernet0)</label>
+        <input type="text" id="if-RU" placeholder="GigabitEthernet0"/></div>
+    </div>
+    <textarea id="tx-RU" placeholder="yandex.ru"></textarea>
+  </div>
+
+  <div class="row" style="align-items:center;margin-top:4px">
+    <input type="text" id="one-line" placeholder="Добавить одну строку в активную вкладку (US/RU)…" style="flex:1"/>
+    <button class="btn btn-d" type="button" onclick="appendCurrentTab()">+ В текст</button>
+  </div>
+
+  <div class="row">
+    <button class="btn btn-g" onclick="saveServer()">Сохранить на сервер</button>
+    <button class="btn btn-o" onclick="applyAll()">Применить на всех legacy</button>
+    <button class="btn btn-b" onclick="applySel()">Только на выбранных</button>
+  </div>
+  <div id="sv" style="font-size:12px;color:var(--mu);margin-bottom:8px"></div>
+  <div class="log" id="log"></div>
+
+  <div class="card" style="margin-top:24px">
+    <h2>Роутеры (KeenDNS → RCI base URL)</h2>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:12px">Один логин/пароль Keenetic задаётся в <code>.env</code> на сервере (KEENETIC_LOGIN / KEENETIC_PASSWORD).</p>
+    <div class="row">
+      <div><label>Имя</label><input type="text" id="rn" placeholder="Дача"/></div>
+      <div style="flex:2"><label>RCI URL</label><input type="url" id="ru" placeholder="http://rci.home.keenetic.pro:79"/></div>
+      <div><label>&nbsp;</label><button class="btn btn-b" onclick="addR()">+ Добавить</button></div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="rtbl"><thead><tr>
+        <th style="width:36px">✓</th><th>Имя</th><th>RCI base URL</th><th>Вкл</th><th></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script>
+let ST={groups:{US:{interface_id:'',lines:[]},RU:{interface_id:'',lines:[]}},routers:[]};
+function hdr(){return{'Content-Type':'application/json','X-Admin-Password':sessionStorage.getItem('kdns_pw')||''};}
+
+async function doLogin(){
+  const p=document.getElementById('apw').value;
+  const e=document.getElementById('aerr');
+  e.style.display='none';
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});
+  if(r.ok){sessionStorage.setItem('kdns_pw',p);document.getElementById('auth-bg').classList.remove('on');await load();}
+  else{e.textContent='Неверный пароль';e.style.display='block';}
+}
+function logout(){sessionStorage.removeItem('kdns_pw');document.getElementById('auth-bg').classList.add('on');}
+
+async function load(){
+  const r=await fetch('/api/data',{headers:hdr()});
+  if(r.status===401){logout();return;}
+  ST=await r.json();
+  paint();
+}
+function paint(){
+  for(const k of['US','RU']){
+    const g=ST.groups[k]||{};
+    document.getElementById('if-'+k).value=g.interface_id||'';
+    document.getElementById('tx-'+k).value=(g.lines||[]).join('\n');
+  }
+  const tb=document.querySelector('#rtbl tbody');
+  tb.innerHTML=(ST.routers||[]).map(ro=>`<tr>
+    <td><input type="checkbox" class="sel" data-id="${ro.id}"/></td>
+    <td>${esc(ro.name)}</td>
+    <td style="font-size:11px;word-break:break-all">${esc(ro.rci_base_url)}</td>
+    <td><input type="checkbox" ${ro.enabled?'checked':''} onchange="toggleEn('${ro.id}',this.checked)"/></td>
+    <td><button class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="testR('${ro.id}')">Тест</button>
+    <button class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="delR('${ro.id}')">✕</button></td>
+  </tr>`).join('')||'<tr><td colspan="5" style="color:var(--mu)">Нет роутеров</td></tr>';
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+
+function setTab(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
+  document.getElementById('panel-US').style.display=t==='US'?'block':'none';
+  document.getElementById('panel-RU').style.display=t==='RU'?'block':'none';
+}
+function activeGroup(){return(document.querySelector('.tab.on')||{}).dataset?.t||'US';}
+function appendCurrentTab(){
+  const k=activeGroup();
+  const line=document.getElementById('one-line').value.trim();
+  if(!line)return;
+  const ta=document.getElementById('tx-'+k);
+  const v=ta.value.replace(/\s+$/,'');
+  ta.value=(v?v+'\n':'')+line;
+  document.getElementById('one-line').value='';
+}
+
+function readForm(){
+  const groups={};
+  for(const k of['US','RU']){
+    const lines=document.getElementById('tx-'+k).value.split('\n').map(s=>s.trim()).filter(Boolean);
+    groups[k]={interface_id:document.getElementById('if-'+k).value.trim(),lines};
+  }
+  return groups;
+}
+
+async function saveServer(){
+  const groups=readForm();
+  const r=await fetch('/api/data',{method:'PUT',headers:hdr(),body:JSON.stringify({groups,routers:ST.routers})});
+  if(r.status===401){logout();return;}
+  if(!r.ok){alert(await r.text());return;}
+  document.getElementById('sv').textContent='Сохранено '+new Date().toLocaleTimeString('ru');
+  await load();
+}
+
+async function addR(){
+  const name=document.getElementById('rn').value.trim();
+  const rci_base_url=document.getElementById('ru').value.trim();
+  if(!name||!rci_base_url){alert('Имя и URL');return;}
+  const r=await fetch('/api/routers',{method:'POST',headers:hdr(),body:JSON.stringify({name,rci_base_url})});
+  if(r.status===401){logout();return;}
+  if(!r.ok){alert(await r.text());return;}
+  document.getElementById('rn').value='';document.getElementById('ru').value='';
+  await load();
+}
+async function delR(id){
+  if(!confirm('Удалить?'))return;
+  await fetch('/api/routers/'+id,{method:'DELETE',headers:hdr()});
+  await load();
+}
+async function toggleEn(id,en){
+  ST.routers=(ST.routers||[]).map(x=>x.id===id?{...x,enabled:en}:x);
+  await fetch('/api/data',{method:'PUT',headers:hdr(),body:JSON.stringify({routers:ST.routers})});
+}
+async function testR(id){
+  const r=await fetch('/api/test-router/'+id,{method:'POST',headers:hdr()});
+  const j=await r.json();
+  alert(j.ok?'OK: '+j.message:'Ошибка: '+j.message);
+}
+
+function showLog(t){const L=document.getElementById('log');L.textContent=t;L.classList.add('show');}
+
+async function applyAll(){
+  await saveServer();
+  const r=await fetch('/api/apply',{method:'POST',headers:hdr(),body:JSON.stringify({mode:'all'})});
+  if(r.status===401){logout();return;}
+  const j=await r.json();
+  showLog((j.results||[]).map(x=>x.ok?`✓ ${x.router}\n${(x.log||[]).join('\n')}`:`✗ ${x.router}: ${x.error}`).join('\n\n'));
+}
+async function applySel(){
+  await saveServer();
+  const ids=[...document.querySelectorAll('.sel:checked')].map(c=>c.dataset.id);
+  if(!ids.length){alert('Отметьте галочками роутеры');return;}
+  const r=await fetch('/api/apply',{method:'POST',headers:hdr(),body:JSON.stringify({mode:'selected',router_ids:ids})});
+  if(r.status===401){logout();return;}
+  const j=await r.json();
+  showLog((j.results||[]).map(x=>x.ok?`✓ ${x.router}\n${(x.log||[]).join('\n')}`:`✗ ${x.router}: ${x.error}`).join('\n\n'));
+}
+
+(async()=>{
+  const p=sessionStorage.getItem('kdns_pw');
+  if(p){
+    const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});
+    if(r.ok){document.getElementById('auth-bg').classList.remove('on');await load();}
+    else{sessionStorage.removeItem('kdns_pw');}
+  }
+})();
+</script>
+</body>
+</html>
