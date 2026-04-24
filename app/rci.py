@@ -5,6 +5,7 @@ import hashlib
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -51,7 +52,15 @@ class KeeneticRCIError(RuntimeError):
 
 class KeeneticRCI:
     def __init__(self, base_url: str, login: str, password: str):
-        self.base_url = base_url.rstrip("/")
+        bu = base_url.rstrip("/")
+        # user:pass@ в base_url ломает httpx (дубли с NDMS-auth) и даёт 500 / странные ответы
+        rest = bu.split("://", 1)[-1] if "://" in bu else bu
+        if "@" in rest:
+            raise KeeneticRCIError(
+                "В base URL не должно быть user:pass@ — сохрани роутер ещё раз "
+                "(логин/пароль только в полях или перенесутся из URL при сохранении)."
+            )
+        self.base_url = bu
         self.login = login
         self.password = password
         self._client: httpx.Client | None = None
@@ -68,27 +77,49 @@ class KeeneticRCI:
         r = client.get("/auth")
         if r.status_code == 200:
             return
-        if r.status_code != 401:
+        if r.status_code == 404:
+            raise KeeneticRCIError(
+                "/auth HTTP 404: на этом адресе нет NDMS /auth — проверь хост и порт прокси "
+                "(часто нужен явный порт, например :81 или :443 для https), без лишнего пути в base URL."
+            )
+        # 401 — стандартный challenge; 403 иногда даёт прокси до входа, но с теми же заголовками
+        if r.status_code not in (401, 403):
             raise KeeneticRCIError(f"/auth HTTP {r.status_code}")
         realm = r.headers.get("X-NDM-Realm", "") or r.headers.get("x-ndm-realm", "")
         challenge = r.headers.get("X-NDM-Challenge", "") or r.headers.get("x-ndm-challenge", "")
         set_cookie = r.headers.get("Set-Cookie") or r.headers.get("set-cookie") or ""
-        cookie = set_cookie.split(";")[0].strip()
-        if not realm or not challenge or not cookie:
+        cookie_pair = set_cookie.split(";")[0].strip()
+        if not realm or not challenge or not cookie_pair:
+            if r.status_code == 403:
+                raise KeeneticRCIError(
+                    "/auth HTTP 403 без NDMS challenge: доступ к HTTP Proxy с IP этого сервера "
+                    "запрещён в настройках роутера, либо открыт не тот сервис. "
+                    "В веб-интерфейсе Keenetic: разрешённые адреса для API / прокси — добавь IP VPS."
+                )
             raise KeeneticRCIError("Нет заголовков X-NDM-Realm / Challenge или Set-Cookie")
         md5_hex = hashlib.md5(
             f"{self.login}:{realm}:{self.password}".encode()
         ).hexdigest()
         sha_hex = hashlib.sha256(f"{challenge}{md5_hex}".encode()).hexdigest()
-        client.headers["Cookie"] = cookie
+        # Не писать Cookie в headers вручную — httpx иначе не подмешивает новую сессию из
+        # Set-Cookie после успешного POST /auth, и /rci/* отвечает 401.
+        client.cookies.update(r.cookies)
+        if not client.cookies and "=" in cookie_pair:
+            host = urlparse(self.base_url).hostname or ""
+            name, _, value = cookie_pair.partition("=")
+            client.cookies.set(name.strip(), value.strip(), domain=host)
         r2 = client.post(
             "/auth",
             json={"login": self.login, "password": sha_hex},
         )
         if r2.status_code in (401, 403):
-            raise KeeneticRCIError("Неверный логин или пароль Keenetic")
+            raise KeeneticRCIError(
+                "Неверный логин или пароль Keenetic (POST /auth). "
+                "Проверь учётку с доступом к HTTP Proxy / API и base URL (хост и порт как в настройках KeenDNS)."
+            )
         if r2.status_code not in (200, 201, 202):
             raise KeeneticRCIError(f"POST /auth HTTP {r2.status_code}")
+        client.cookies.update(r2.cookies)
 
     def list_interfaces(self) -> list[dict[str, Any]]:
         """GET /rci/show/interface — id, type, description, state (как gokeenapi)."""
@@ -97,7 +128,13 @@ class KeeneticRCI:
             r = client.get("/rci/show/interface")
             if r.status_code != 200:
                 raise KeeneticRCIError(f"show/interface HTTP {r.status_code}")
-            data = r.json()
+            try:
+                data = r.json()
+            except ValueError as e:
+                raise KeeneticRCIError(
+                    f"show/interface: ответ не JSON (возможно неверный URL прокси). "
+                    f"Начало тела: {r.text[:160]!r}"
+                ) from e
             if not isinstance(data, dict):
                 raise KeeneticRCIError("show/interface: ожидался объект JSON")
             rows: list[dict[str, Any]] = []
@@ -268,8 +305,17 @@ def test_connection(base_url: str, login: str, password: str) -> tuple[bool, str
             k._auth(c)
             r = c.get("/rci/show/version")
             if r.status_code != 200:
+                if r.status_code == 401:
+                    return (
+                        False,
+                        "RCI /rci/show/version → 401: сессия не принята "
+                        "(часто неверный логин/пароль или устаревший клиент; обновите сервис).",
+                    )
                 return False, f"version HTTP {r.status_code}"
-            j = r.json()
+            try:
+                j = r.json()
+            except ValueError:
+                return False, f"version: ответ не JSON (проверь URL прокси): {r.text[:120]!r}"
             title = j.get("title") or j.get("Title") or "?"
             return True, str(title)
     except Exception as e:

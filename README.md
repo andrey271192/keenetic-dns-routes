@@ -10,7 +10,7 @@
 
 - KeeneticOS **≥ 5.0.1** (DNS-based routes).
 - Доступ к RCI с VPS: **KeenDNS** + **HTTP Proxy** для API (четвёртый уровень `rci.…`, порт **79**): [инструкция Keenetic](https://support.keenetic.com/hero/kn-1012/en/55035-using-api-methods-through-the-http-proxy-service.html).
-- Пользователю роутера выданы права на **HTTP Proxy**; логин/пароль одинаковые для всех legacy-роутеров (задаются в `.env` сервиса).
+- Пользователю роутера выданы права на **HTTP Proxy**. Учётка API: по умолчанию **`KEENETIC_*` в `.env`**, либо у каждого роутера свои поля / один раз URL `http(s)://логин:пароль@хост:порт` (при сохранении логин/пароль переносятся в поля).
 
 ## Установка (Ubuntu)
 
@@ -18,7 +18,7 @@
 git clone https://github.com/andrey271192/keenetic-dns-routes.git /opt/keenetic-dns-routes
 cd /opt/keenetic-dns-routes
 sudo bash install.sh
-nano .env   # ADMIN_PASSWORD, KEENETIC_LOGIN, KEENETIC_PASSWORD
+nano .env   # ADMIN_PASSWORD + при желании KEENETIC_LOGIN / KEENETIC_PASSWORD (дефолт для роутеров без своих полей)
 sudo systemctl restart keenetic-dns-routes
 ```
 
@@ -26,9 +26,9 @@ sudo systemctl restart keenetic-dns-routes
 
 ## Настройка
 
-1. В **Interface ID** для US/RU укажи внутреннее имя интерфейса Keenetic (как в CLI: `Wireguard0`, `GigabitEthernet0`, `PPPoE0` и т.д.). Узнать можно в веб-интерфейсе или через `show interface` / утилиту [gokeenapi](https://github.com/Noksa/gokeenapi) `show-interfaces`.
+1. В **Interface ID** для US/RU — имя интерфейса (`Wireguard0`, `PPPoE0`…). Кнопка **«Сканировать…»** подгружает список с роутера; опция **«Только WireGuard»** сужает выбор до WG-туннелей.
 2. В списках — **одна строка = один домен или IPv4/IPv6/CIDR**. Пустые строки и строки с `#` в начале игнорируются.
-3. Добавь роутеры: **RCI URL** вида `http://rci.имя.keenetic.pro:79` (без слэша в конце).
+3. Добавь роутеры: **base URL** прокси KeenDNS (`http(s)://хост:порт`, без пути `/rci/...`). Логин/пароль — в полях или в URL `логин:пароль@хост`; если пусто — из `KEENETIC_*` в `.env`.
 4. **Сохранить на сервер** — только JSON на VPS.
 5. **Применить на всех legacy** или отметь галочками и **Только на выбранных** — пошлёт на каждый RCI дифф: удалит лишние `include`, добавит новые, обновит `dns-proxy route` при смене интерфейса, в конце `system configuration save`.
 
@@ -39,8 +39,9 @@ sudo systemctl restart keenetic-dns-routes
 - `PUT /api/data` — полное или частичное обновление (`groups` и/или `routers`).
 - `POST /api/groups/{US|RU}/lines` — тело `{"add":["a.com"],"remove":["b.com"]}`: правка списка **на сервере** без пересылки всего textarea (порядок: сначала удаления, затем добавления в конец).
 - `POST /api/apply` — `{"mode":"all"|"selected","router_ids":["id1"]}`.
-- `GET /api/keenetic-env` — логин Keenetic и флаг «пароль задан» (сам пароль не отдаётся).
-- `GET /api/routers/{id}/interfaces` — список интерфейсов с роутера (`GET /rci/show/interface`), для подбора **Interface ID**.
+- `GET /api/keenetic-env` — дефолтный логин из `.env` и флаг «KEENETIC_PASSWORD задан».
+- `GET /api/routers/{id}/interfaces` — список интерфейсов (`GET /rci/show/interface`); query `wireguard_only=1` — только WireGuard.
+- `PATCH /api/routers/{id}` — правка имени, URL, `keenetic_login` / `keenetic_password`.
 
 ## Ограничения
 
@@ -50,8 +51,18 @@ sudo systemctl restart keenetic-dns-routes
 ## Обновление
 
 ```bash
-cd /opt/keenetic-dns-routes && git pull && sudo systemctl restart keenetic-dns-routes
+cd /opt/keenetic-dns-routes && sudo bash update.sh
 ```
+
+Если **`update.sh: No such file or directory`**: подтяни свежий `install.sh` с репозитория и один раз выполни `sudo bash install.sh` — он **создаст** `update.sh`, если файла нет. Либо вручную:
+
+```bash
+cd /opt/keenetic-dns-routes && git pull --ff-only
+source venv/bin/activate && pip install -r requirements.txt
+sudo systemctl restart keenetic-dns-routes
+```
+
+Без git: скопируй каталог проекта поверх, затем снова `sudo bash update.sh` или команды выше.
 
 ## Связь
 

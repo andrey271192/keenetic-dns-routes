@@ -38,9 +38,10 @@
     #auth-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;align-items:center;justify-content:center}
     #auth-bg.on{display:flex}
     #auth-box{background:var(--card);border:1px solid var(--bd);padding:28px;border-radius:16px;width:min(360px,92vw)}
-    #ifscan-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;align-items:center;justify-content:center;padding:16px}
-    #ifscan-modal.on{display:flex}
+    #ifscan-modal,#edit-router-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;align-items:center;justify-content:center;padding:16px}
+    #ifscan-modal.on,#edit-router-modal.on{display:flex}
     #ifscan-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:900px;width:100%;max-height:88vh;overflow:auto;padding:18px}
+    #edit-router-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:520px;width:100%;padding:18px}
     .if-row{cursor:pointer}
     .if-row:hover{background:rgba(59,130,246,.12)}
   </style>
@@ -48,7 +49,8 @@
 <body>
 <div id="auth-bg" class="on"><div id="auth-box">
   <h2 style="margin-bottom:12px;font-size:18px">Keenetic DNS Routes</h2>
-  <label>Пароль веб-интерфейса</label>
+  <p style="font-size:11px;color:var(--mu);margin-bottom:10px;line-height:1.45">Сюда только <b>ADMIN_PASSWORD</b> из <code>.env</code> (вход на эту страницу). Для API роутеров: поля ниже или <code>KEENETIC_*</code> в <code>.env</code>, или <code>логин:пароль@</code> в URL.</p>
+  <label>Пароль веб-интерфейса (ADMIN_PASSWORD)</label>
   <input type="password" id="apw" autocomplete="current-password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()"/>
   <div id="aerr" style="color:var(--er);font-size:12px;margin-bottom:8px;display:none"></div>
   <button class="btn btn-b" style="width:100%" onclick="doLogin()">Войти</button>
@@ -61,10 +63,11 @@
 
 <div class="wrap">
   <div class="card" id="cred-card" style="display:none">
-    <h2>Учётная запись Keenetic (RCI)</h2>
+    <h2>Учётные данные Keenetic (API)</h2>
+    <p style="font-size:11px;color:var(--mu);margin-bottom:8px;line-height:1.5">Два варианта по умолчанию: <b>KEENETIC_LOGIN / KEENETIC_PASSWORD</b> в <code>.env</code> на сервере <b>или</b> свои логин/пароль (или <code>http(s)://логин:пароль@хост:порт</code>) у каждого роутера. Пароль входа на эту страницу — только <code>ADMIN_PASSWORD</code>.</p>
     <p id="cred-line" style="font-size:14px;margin-bottom:6px"></p>
     <p id="cred-hint" style="font-size:11px;color:var(--mu);line-height:1.5"></p>
-    <p style="font-size:11px;color:var(--mu);margin-top:8px">Пароль в этот экран <b>не передаётся</b> — только в <code>/opt/keenetic-dns-routes/.env</code> как <code>KEENETIC_PASSWORD</code>. Для KeenDNS API часто нужен URL вида <code>http://rci.имя.keenetic.pro:79</code>, а не HTTPS веб-морды.</p>
+    <p style="font-size:11px;color:var(--mu);margin-top:8px">В URL можно указать <code>логин:пароль@</code> перед хостом — при сохранении они переносятся в поля, в адресе остаётся только <code>http(s)://хост:порт</code>. Пути вида <code>/rci/...</code> в base URL не указывай — их добавляет сервис.</p>
   </div>
 
   <div class="tabs">
@@ -76,19 +79,19 @@
     <h2>US — домены и IP/CIDR (одна строка = одна запись)</h2>
     <div class="row" style="align-items:flex-end">
       <div style="flex:1"><label>Interface ID (как в RCI: Wireguard0, PPPoE0…)</label>
-        <input type="text" id="if-US" placeholder="Wireguard0"/></div>
+        <input type="text" id="if-US" placeholder="Wireguard0" oninput="ST.groups=readForm()"/></div>
       <div><label>&nbsp;</label><button type="button" class="btn btn-d" onclick="openIfScan('US')">Сканировать…</button></div>
     </div>
-    <textarea id="tx-US" placeholder="youtube.com&#10;1.2.3.0/24"></textarea>
+    <textarea id="tx-US" placeholder="youtube.com&#10;1.2.3.0/24" oninput="ST.groups=readForm()"></textarea>
   </div>
   <div class="card" id="panel-RU" style="display:none">
     <h2>RU — домены и IP/CIDR</h2>
     <div class="row" style="align-items:flex-end">
       <div style="flex:1"><label>Interface ID</label>
-        <input type="text" id="if-RU" placeholder="GigabitEthernet0"/></div>
+        <input type="text" id="if-RU" placeholder="GigabitEthernet0" oninput="ST.groups=readForm()"/></div>
       <div><label>&nbsp;</label><button type="button" class="btn btn-d" onclick="openIfScan('RU')">Сканировать…</button></div>
     </div>
-    <textarea id="tx-RU" placeholder="yandex.ru"></textarea>
+    <textarea id="tx-RU" placeholder="yandex.ru" oninput="ST.groups=readForm()"></textarea>
   </div>
 
   <div class="row" style="align-items:center;margin-top:4px">
@@ -105,20 +108,39 @@
   <div class="log" id="log"></div>
 
   <div class="card" style="margin-top:24px">
-    <h2>Роутеры (KeenDNS → RCI base URL)</h2>
-    <p style="font-size:12px;color:var(--mu);margin-bottom:12px">Логин/пароль для входа в RCI — в <code>.env</code> на сервере. Сводка сверху на странице; пароль в браузер не выводится.</p>
+    <h2>Роутеры (KeenDNS → base URL прокси)</h2>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:12px">У каждого роутера: <b>base URL</b> + при необходимости <b>логин/пароль</b>, либо сразу URL <code>http(s)://логин:пароль@хост:порт</code>. Если поля логина/пароля пустые — берутся <code>KEENETIC_*</code> из <code>.env</code> на сервере.</p>
+    <p style="font-size:11px;color:var(--mu);margin-bottom:10px;line-height:1.45">Укажи тот же <b>хост и порт</b>, что в KeenDNS для HTTP Proxy (часто не стандартный порт). Для <code>http</code> без порта запрос уйдёт на <b>80</b> и может быть <code>/auth 404</code>. <code>/auth 403</code> — проверь разрешённые IP для API на роутере.</p>
     <div class="row">
-      <div><label>Имя</label><input type="text" id="rn" placeholder="Дача"/></div>
-      <div style="flex:2"><label>RCI URL</label><input type="url" id="ru" placeholder="http://rci.home.keenetic.pro:79"/></div>
+      <div style="min-width:120px"><label>Имя</label><input type="text" id="rn" placeholder="Дача"/></div>
+      <div style="flex:2;min-width:220px"><label>Base URL прокси</label><input type="url" id="ru" placeholder="https://homesmart.netcraze.pro:81"/></div>
+      <div style="min-width:100px"><label>Логин (если не .env)</label><input type="text" id="rl" placeholder="пусто = из .env"/></div>
+      <div style="min-width:120px"><label>Пароль (если не .env)</label><input type="password" id="rp" placeholder="пусто = из .env" autocomplete="new-password"/></div>
       <div><label>&nbsp;</label><button class="btn btn-b" onclick="addR()">+ Добавить</button></div>
     </div>
     <div style="overflow-x:auto">
       <table class="tbl" id="rtbl"><thead><tr>
-        <th style="width:36px">✓</th><th>Имя</th><th>RCI base URL</th><th>Вкл</th><th></th>
+        <th style="width:36px" title="Выбор для кнопки «Только на выбранных»">☑</th><th>Имя</th><th>Base URL</th><th>Логин</th><th>Пароль</th><th title="Включить/выключить роутер для «Применить на всех»">Вкл</th><th></th>
       </tr></thead><tbody></tbody></table>
     </div>
   </div>
 </div>
+
+<div id="edit-router-modal"><div id="edit-router-box">
+  <h3 style="margin-bottom:12px;font-size:16px">Роутер</h3>
+  <input type="hidden" id="er-id"/>
+  <div class="row"><div style="flex:1"><label>Имя</label><input type="text" id="er-name"/></div></div>
+  <div class="row"><div style="flex:1"><label>Base URL прокси</label><input type="url" id="er-url" placeholder="https://хост:порт"/></div></div>
+  <div class="row"><div style="flex:1"><label>Keenetic логин</label><input type="text" id="er-login" placeholder="логин RCI"/></div></div>
+  <div class="row"><div style="flex:1"><label>Keenetic пароль</label><input type="password" id="er-pass" placeholder="пусто = не менять" autocomplete="new-password"/></div></div>
+  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu);cursor:pointer;margin-bottom:12px">
+    <input type="checkbox" id="er-clear-pass"/> Очистить пароль (потом задай заново или в URL user:pass@)
+  </label>
+  <div class="row" style="margin-bottom:0">
+    <button type="button" class="btn btn-b" onclick="saveEditRouter()">Сохранить</button>
+    <button type="button" class="btn btn-d" onclick="closeEditRouter()">Отмена</button>
+  </div>
+</div></div>
 
 <div id="ifscan-modal"><div id="ifscan-box">
   <h3 style="margin-bottom:12px;font-size:16px">Интерфейсы с роутера (RCI)</h3>
@@ -128,6 +150,9 @@
       <select id="ifscan-router" style="width:100%;background:#111;border:1px solid var(--bd);border-radius:10px;padding:10px;color:var(--tx);font-size:13px"></select></div>
     <div><label>&nbsp;</label><button type="button" class="btn btn-b" onclick="runIfScan()">Загрузить</button></div>
   </div>
+  <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu);cursor:pointer;margin-bottom:10px">
+    <input type="checkbox" id="ifscan-wg-only"/> Только WireGuard (удобно выбрать туннель US/RU)
+  </label>
   <div id="ifscan-list" style="font-size:12px"></div>
   <button type="button" class="btn btn-d" style="margin-top:14px" onclick="closeIfScan()">Закрыть</button>
 </div></div>
@@ -152,8 +177,8 @@ async function loadCred(){
     if(!r.ok)return;
     const j=await r.json();
     document.getElementById('cred-card').style.display='block';
-    const pw=j.password_configured?'<span class="pill ok">пароль в .env задан</span>':'<span class="pill bad">KEENETIC_PASSWORD пустой</span>';
-    document.getElementById('cred-line').innerHTML='Логин: <b>'+esc(j.login)+'</b> &nbsp; '+pw;
+    const pw=j.password_configured?'<span class="pill ok">KEENETIC_PASSWORD в .env задан</span>':'<span class="pill bad">KEENETIC_PASSWORD в .env пустой</span>';
+    document.getElementById('cred-line').innerHTML='Дефолт из .env: логин <b>'+esc(j.login||'')+'</b> &nbsp; '+pw;
     document.getElementById('cred-hint').textContent=j.hint||'';
   }catch(_){}
 }
@@ -175,7 +200,9 @@ async function runIfScan(){
   const L=document.getElementById('ifscan-list');
   if(!id){L.innerHTML='<span style="color:var(--er)">Выбери роутера</span>';return;}
   L.innerHTML='Загрузка…';
-  const r=await fetch('/api/routers/'+encodeURIComponent(id)+'/interfaces',{headers:hdr()});
+  const wg=document.getElementById('ifscan-wg-only').checked;
+  const q=wg?'?wireguard_only=1':'';
+  const r=await fetch('/api/routers/'+encodeURIComponent(id)+'/interfaces'+q,{headers:hdr()});
   if(r.status===401){logout();return;}
   if(!r.ok){L.innerHTML='<span style="color:var(--er)">'+(await r.text())+'</span>';return;}
   const j=await r.json();
@@ -205,14 +232,45 @@ function paint(){
     document.getElementById('tx-'+k).value=(g.lines||[]).join('\n');
   }
   const tb=document.querySelector('#rtbl tbody');
-  tb.innerHTML=(ST.routers||[]).map(ro=>`<tr>
-    <td><input type="checkbox" class="sel" data-id="${ro.id}"/></td>
+  tb.innerHTML=(ST.routers||[]).map(ro=>{
+    const lo=String(ro.keenetic_login||'').trim();
+    const hasPw=String(ro.keenetic_password||'').length>0;
+    const fromEnv=!lo&&!hasPw;
+    const iid=String(ro.id||'');
+    return `<tr>
+    <td><input type="checkbox" class="kdns-sel" data-id="${esc(iid)}" title="Выбор для «Только на выбранных»"/></td>
     <td>${esc(ro.name)}</td>
     <td style="font-size:11px;word-break:break-all">${esc(ro.rci_base_url)}</td>
-    <td><input type="checkbox" ${ro.enabled?'checked':''} onchange="toggleEn('${ro.id}',this.checked)"/></td>
-    <td><button class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="testR('${ro.id}')">Тест</button>
-    <button class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="delR('${ro.id}')">✕</button></td>
-  </tr>`).join('')||'<tr><td colspan="5" style="color:var(--mu)">Нет роутеров</td></tr>';
+    <td style="font-size:11px">${fromEnv?'<span style="color:var(--mu)">из .env</span>':esc(lo)}</td>
+    <td style="font-size:11px">${fromEnv?'<span class="pill ok">из .env</span>':(hasPw?'<span class="pill ok">есть</span>':'<span class="pill bad">нет</span>')}</td>
+    <td><input type="checkbox" ${ro.enabled?'checked':''} onchange="toggleEn(${JSON.stringify(iid)},this.checked)"/></td>
+    <td><button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="openEditRouter(${JSON.stringify(iid)})">Изм.</button>
+    <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="testR(${JSON.stringify(iid)})">Тест</button>
+    <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="delR(${JSON.stringify(iid)})">✕</button></td>
+  </tr>`;
+  }).join('')||'<tr><td colspan="7" style="color:var(--mu)">Нет роутеров</td></tr>';
+}
+function openEditRouter(id){
+  const ro=(ST.routers||[]).find(x=>x.id===id);if(!ro)return;
+  document.getElementById('er-id').value=ro.id;
+  document.getElementById('er-name').value=ro.name||'';
+  document.getElementById('er-url').value=ro.rci_base_url||'';
+  document.getElementById('er-login').value=ro.keenetic_login||'';
+  document.getElementById('er-pass').value='';
+  document.getElementById('er-clear-pass').checked=false;
+  document.getElementById('edit-router-modal').classList.add('on');
+}
+function closeEditRouter(){document.getElementById('edit-router-modal').classList.remove('on');}
+async function saveEditRouter(){
+  const id=document.getElementById('er-id').value;
+  const body={name:document.getElementById('er-name').value.trim(),rci_base_url:document.getElementById('er-url').value.trim(),keenetic_login:document.getElementById('er-login').value.trim()};
+  if(document.getElementById('er-clear-pass').checked)body.keenetic_password='';
+  else{const pw=document.getElementById('er-pass').value;if(pw)body.keenetic_password=pw;}
+  const r=await fetch('/api/routers/'+encodeURIComponent(id),{method:'PATCH',headers:hdr(),body:JSON.stringify(body)});
+  if(r.status===401){logout();return;}
+  if(!r.ok){alert(await r.text());return;}
+  closeEditRouter();
+  await load();
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 
@@ -230,34 +288,47 @@ function appendCurrentTab(){
   const v=ta.value.replace(/\s+$/,'');
   ta.value=(v?v+'\n':'')+line;
   document.getElementById('one-line').value='';
+  ST.groups=readForm();
 }
 
 function readForm(){
   const groups={};
   for(const k of['US','RU']){
-    const lines=document.getElementById('tx-'+k).value.split('\n').map(s=>s.trim()).filter(Boolean);
+    const raw=document.getElementById('tx-'+k).value||'';
+    const lines=raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
     groups[k]={interface_id:document.getElementById('if-'+k).value.trim(),lines};
   }
   return groups;
 }
 
-async function saveServer(){
+/**
+ * @param {{skipLoad?:boolean}} opts — skipLoad: не перезагружать страницу (нужно перед «Только на выбранных»,
+ * иначе load() сбрасывает чекбоксы выбора; или перед добавлением роутера, чтобы сначала сохранить US/RU).
+ */
+async function saveServer(opts){
+  const skipLoad=opts&&opts.skipLoad;
   const groups=readForm();
   const r=await fetch('/api/data',{method:'PUT',headers:hdr(),body:JSON.stringify({groups,routers:ST.routers})});
   if(r.status===401){logout();return;}
   if(!r.ok){alert(await r.text());return;}
+  ST.groups=groups;
   document.getElementById('sv').textContent='Сохранено '+new Date().toLocaleTimeString('ru');
-  await load();
+  if(!skipLoad) await load();
 }
 
 async function addR(){
   const name=document.getElementById('rn').value.trim();
   const rci_base_url=document.getElementById('ru').value.trim();
+  const keenetic_login=document.getElementById('rl').value.trim();
+  const keenetic_password=document.getElementById('rp').value;
   if(!name||!rci_base_url){alert('Имя и URL');return;}
-  const r=await fetch('/api/routers',{method:'POST',headers:hdr(),body:JSON.stringify({name,rci_base_url})});
+  // Сначала сохраняем US/RU с сервера в store, иначе после load() пропадут несохранённые домены
+  await saveServer({skipLoad:true});
+  const r=await fetch('/api/routers',{method:'POST',headers:hdr(),body:JSON.stringify({name,rci_base_url,keenetic_login,keenetic_password})});
   if(r.status===401){logout();return;}
   if(!r.ok){alert(await r.text());return;}
   document.getElementById('rn').value='';document.getElementById('ru').value='';
+  document.getElementById('rl').value='';document.getElementById('rp').value='';
   await load();
 }
 async function delR(id){
@@ -267,7 +338,9 @@ async function delR(id){
 }
 async function toggleEn(id,en){
   ST.routers=(ST.routers||[]).map(x=>x.id===id?{...x,enabled:en}:x);
-  await fetch('/api/data',{method:'PUT',headers:hdr(),body:JSON.stringify({routers:ST.routers})});
+  const groups=readForm();
+  ST.groups=groups;
+  await fetch('/api/data',{method:'PUT',headers:hdr(),body:JSON.stringify({groups,routers:ST.routers})});
 }
 async function testR(id){
   const r=await fetch('/api/test-router/'+id,{method:'POST',headers:hdr()});
@@ -278,20 +351,25 @@ async function testR(id){
 function showLog(t){const L=document.getElementById('log');L.textContent=t;L.classList.add('show');}
 
 async function applyAll(){
-  await saveServer();
+  await saveServer({skipLoad:true});
   const r=await fetch('/api/apply',{method:'POST',headers:hdr(),body:JSON.stringify({mode:'all'})});
   if(r.status===401){logout();return;}
   const j=await r.json();
   showLog((j.results||[]).map(x=>x.ok?`✓ ${x.router}\n${(x.log||[]).join('\n')}`:`✗ ${x.router}: ${x.error}`).join('\n\n'));
+  await load();
 }
 async function applySel(){
-  await saveServer();
-  const ids=[...document.querySelectorAll('.sel:checked')].map(c=>c.dataset.id);
-  if(!ids.length){alert('Отметьте галочками роутеры');return;}
+  const ids=[...document.querySelectorAll('#rtbl input.kdns-sel:checked')].map(c=>c.getAttribute('data-id')).filter(Boolean);
+  if(!ids.length){
+    alert('Отметьте чекбоксы в первой колонке таблицы «Роутеры» (слева), не переключатель «Вкл». Обнови страницу (Ctrl+F5), если не помогло.');
+    return;
+  }
+  await saveServer({skipLoad:true});
   const r=await fetch('/api/apply',{method:'POST',headers:hdr(),body:JSON.stringify({mode:'selected',router_ids:ids})});
   if(r.status===401){logout();return;}
   const j=await r.json();
   showLog((j.results||[]).map(x=>x.ok?`✓ ${x.router}\n${(x.log||[]).join('\n')}`:`✗ ${x.router}: ${x.error}`).join('\n\n'));
+  await load();
 }
 
 (async()=>{

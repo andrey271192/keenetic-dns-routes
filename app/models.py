@@ -13,9 +13,11 @@ class RouterSpec(BaseModel):
     name: str
     rci_base_url: str = Field(
         ...,
-        description="Например http://rci.home.keenetic.pro:79 (KeenDNS HTTP Proxy)",
+        description="Базовый URL HTTP Proxy (http(s)://хост:порт), без путей /rci/...",
     )
     enabled: bool = True
+    keenetic_login: str = Field(default="", description="Логин Keenetic для HTTP Proxy / RCI")
+    keenetic_password: str = Field(default="", description="Пароль Keenetic для RCI")
 
 
 class StoreData(BaseModel):
@@ -34,9 +36,11 @@ class StoreData(BaseModel):
             if isinstance(v, dict):
                 g[k] = GroupSpec(**v)
         rlist = []
+        from .rci_url import sanitize_router_dict
+
         for r in raw.get("routers") or []:
             if isinstance(r, dict) and r.get("id"):
-                rlist.append(RouterSpec(**r))
+                rlist.append(RouterSpec(**sanitize_router_dict(r)))
         return cls(groups=g, routers=rlist)
 
     def to_json(self) -> dict[str, Any]:
