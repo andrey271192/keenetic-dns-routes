@@ -11,7 +11,8 @@ STORE_FILE = DATA_DIR / "store.json"
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8001"))
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
+# Пустая строка в .env (ADMIN_PASSWORD=) не даёт дефолт через getenv — явно подставляем admin
+ADMIN_PASSWORD = (os.getenv("ADMIN_PASSWORD") or "admin").strip()
 
-KEENETIC_LOGIN = os.getenv("KEENETIC_LOGIN", "admin")
-KEENETIC_PASSWORD = os.getenv("KEENETIC_PASSWORD", "")
+KEENETIC_LOGIN = (os.getenv("KEENETIC_LOGIN") or "admin").strip()
+KEENETIC_PASSWORD = (os.getenv("KEENETIC_PASSWORD") or "").strip()

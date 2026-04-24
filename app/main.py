@@ -24,7 +24,7 @@ TPL = Path(__file__).resolve().parent.parent / "templates"
 
 
 def _chk(pwd: str) -> None:
-    if config.ADMIN_PASSWORD and pwd != config.ADMIN_PASSWORD:
+    if (pwd or "").strip() != config.ADMIN_PASSWORD:
         raise HTTPException(401, "Неверный пароль")
 
 
@@ -44,7 +44,7 @@ async def index():
 
 @app.post("/api/auth")
 async def api_auth(b: AuthBody):
-    if config.ADMIN_PASSWORD and b.password == config.ADMIN_PASSWORD:
+    if (b.password or "").strip() == config.ADMIN_PASSWORD:
         return {"ok": True}
     raise HTTPException(401, "Wrong password")
 
