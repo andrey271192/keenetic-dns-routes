@@ -39,6 +39,8 @@ sudo systemctl restart keenetic-dns-routes
 - `PUT /api/data` — полное или частичное обновление (`groups` и/или `routers`).
 - `POST /api/groups/{US|RU}/lines` — тело `{"add":["a.com"],"remove":["b.com"]}`: правка списка **на сервере** без пересылки всего textarea (порядок: сначала удаления, затем добавления в конец).
 - `POST /api/apply` — `{"mode":"all"|"selected","router_ids":["id1"]}`.
+- `GET /api/keenetic-env` — логин Keenetic и флаг «пароль задан» (сам пароль не отдаётся).
+- `GET /api/routers/{id}/interfaces` — список интерфейсов с роутера (`GET /rci/show/interface`), для подбора **Interface ID**.
 
 ## Ограничения
 

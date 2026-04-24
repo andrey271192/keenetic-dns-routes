@@ -38,6 +38,11 @@
     #auth-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;align-items:center;justify-content:center}
     #auth-bg.on{display:flex}
     #auth-box{background:var(--card);border:1px solid var(--bd);padding:28px;border-radius:16px;width:min(360px,92vw)}
+    #ifscan-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;align-items:center;justify-content:center;padding:16px}
+    #ifscan-modal.on{display:flex}
+    #ifscan-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:900px;width:100%;max-height:88vh;overflow:auto;padding:18px}
+    .if-row{cursor:pointer}
+    .if-row:hover{background:rgba(59,130,246,.12)}
   </style>
 </head>
 <body>
@@ -55,6 +60,13 @@
 </div>
 
 <div class="wrap">
+  <div class="card" id="cred-card" style="display:none">
+    <h2>Учётная запись Keenetic (RCI)</h2>
+    <p id="cred-line" style="font-size:14px;margin-bottom:6px"></p>
+    <p id="cred-hint" style="font-size:11px;color:var(--mu);line-height:1.5"></p>
+    <p style="font-size:11px;color:var(--mu);margin-top:8px">Пароль в этот экран <b>не передаётся</b> — только в <code>/opt/keenetic-dns-routes/.env</code> как <code>KEENETIC_PASSWORD</code>. Для KeenDNS API часто нужен URL вида <code>http://rci.имя.keenetic.pro:79</code>, а не HTTPS веб-морды.</p>
+  </div>
+
   <div class="tabs">
     <button class="tab on" data-t="US" onclick="setTab('US')">Список US</button>
     <button class="tab" data-t="RU" onclick="setTab('RU')">Список RU</button>
@@ -62,17 +74,19 @@
 
   <div class="card" id="panel-US">
     <h2>US — домены и IP/CIDR (одна строка = одна запись)</h2>
-    <div class="row">
-      <div><label>Interface ID (например Wireguard0, PPPoE0)</label>
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:1"><label>Interface ID (как в RCI: Wireguard0, PPPoE0…)</label>
         <input type="text" id="if-US" placeholder="Wireguard0"/></div>
+      <div><label>&nbsp;</label><button type="button" class="btn btn-d" onclick="openIfScan('US')">Сканировать…</button></div>
     </div>
     <textarea id="tx-US" placeholder="youtube.com&#10;1.2.3.0/24"></textarea>
   </div>
   <div class="card" id="panel-RU" style="display:none">
     <h2>RU — домены и IP/CIDR</h2>
-    <div class="row">
-      <div><label>Interface ID (например GigabitEthernet0)</label>
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:1"><label>Interface ID</label>
         <input type="text" id="if-RU" placeholder="GigabitEthernet0"/></div>
+      <div><label>&nbsp;</label><button type="button" class="btn btn-d" onclick="openIfScan('RU')">Сканировать…</button></div>
     </div>
     <textarea id="tx-RU" placeholder="yandex.ru"></textarea>
   </div>
@@ -92,7 +106,7 @@
 
   <div class="card" style="margin-top:24px">
     <h2>Роутеры (KeenDNS → RCI base URL)</h2>
-    <p style="font-size:12px;color:var(--mu);margin-bottom:12px">Один логин/пароль Keenetic задаётся в <code>.env</code> на сервере (KEENETIC_LOGIN / KEENETIC_PASSWORD).</p>
+    <p style="font-size:12px;color:var(--mu);margin-bottom:12px">Логин/пароль для входа в RCI — в <code>.env</code> на сервере. Сводка сверху на странице; пароль в браузер не выводится.</p>
     <div class="row">
       <div><label>Имя</label><input type="text" id="rn" placeholder="Дача"/></div>
       <div style="flex:2"><label>RCI URL</label><input type="url" id="ru" placeholder="http://rci.home.keenetic.pro:79"/></div>
@@ -105,6 +119,18 @@
     </div>
   </div>
 </div>
+
+<div id="ifscan-modal"><div id="ifscan-box">
+  <h3 style="margin-bottom:12px;font-size:16px">Интерфейсы с роутера (RCI)</h3>
+  <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Выбери роутер → «Загрузить». Строка = то, что вписывается в <b>Interface ID</b> для текущей вкладки (US или RU). Обычно для VPN — <code>Wireguard0</code> / <code>OpenVPN0</code>, для провайдера — <code>PPPoE0</code> / <code>GigabitEthernet0</code> и т.п.</p>
+  <div class="row" style="align-items:flex-end;margin-bottom:10px">
+    <div style="flex:1"><label>Роутер</label>
+      <select id="ifscan-router" style="width:100%;background:#111;border:1px solid var(--bd);border-radius:10px;padding:10px;color:var(--tx);font-size:13px"></select></div>
+    <div><label>&nbsp;</label><button type="button" class="btn btn-b" onclick="runIfScan()">Загрузить</button></div>
+  </div>
+  <div id="ifscan-list" style="font-size:12px"></div>
+  <button type="button" class="btn btn-d" style="margin-top:14px" onclick="closeIfScan()">Закрыть</button>
+</div></div>
 
 <script>
 let ST={groups:{US:{interface_id:'',lines:[]},RU:{interface_id:'',lines:[]}},routers:[]};
@@ -120,11 +146,57 @@ async function doLogin(){
 }
 function logout(){sessionStorage.removeItem('kdns_pw');document.getElementById('auth-bg').classList.add('on');}
 
+async function loadCred(){
+  try{
+    const r=await fetch('/api/keenetic-env',{headers:hdr()});
+    if(!r.ok)return;
+    const j=await r.json();
+    document.getElementById('cred-card').style.display='block';
+    const pw=j.password_configured?'<span class="pill ok">пароль в .env задан</span>':'<span class="pill bad">KEENETIC_PASSWORD пустой</span>';
+    document.getElementById('cred-line').innerHTML='Логин: <b>'+esc(j.login)+'</b> &nbsp; '+pw;
+    document.getElementById('cred-hint').textContent=j.hint||'';
+  }catch(_){}
+}
+let _ifTab='US';
+function openIfScan(tab){
+  _ifTab=tab;
+  const s=document.getElementById('ifscan-router');
+  s.innerHTML='<option value="">— выбери роутер —</option>'+(ST.routers||[]).map(r=>'<option value="'+esc(r.id)+'">'+esc(r.name)+'</option>').join('');
+  document.getElementById('ifscan-list').innerHTML='';
+  document.getElementById('ifscan-modal').classList.add('on');
+}
+function closeIfScan(){document.getElementById('ifscan-modal').classList.remove('on');}
+function pickIf(id){
+  document.getElementById('if-'+_ifTab).value=id;
+  closeIfScan();
+}
+async function runIfScan(){
+  const id=document.getElementById('ifscan-router').value;
+  const L=document.getElementById('ifscan-list');
+  if(!id){L.innerHTML='<span style="color:var(--er)">Выбери роутера</span>';return;}
+  L.innerHTML='Загрузка…';
+  const r=await fetch('/api/routers/'+encodeURIComponent(id)+'/interfaces',{headers:hdr()});
+  if(r.status===401){logout();return;}
+  if(!r.ok){L.innerHTML='<span style="color:var(--er)">'+(await r.text())+'</span>';return;}
+  const j=await r.json();
+  const rows=(j.interfaces||[]).map(it=>{
+    const iid=String(it.id||'');
+    return '<tr class="if-row" data-ifid="'+esc(iid).replace(/"/g,'&quot;')+'"><td><code>'+esc(iid)+'</code></td><td>'+esc(it.type)+'</td><td>'+esc(it.description)+'</td><td style="font-size:11px;color:var(--mu)">'+esc([it.state,it.link,it.connected].filter(Boolean).join(' · '))+'</td><td><button type="button" class="btn btn-b" style="padding:4px 10px;font-size:11px">Вставить</button></td></tr>';
+  }).join('');
+  L.innerHTML='<table class="tbl"><thead><tr><th>ID</th><th>Тип</th><th>Описание</th><th>Состояние</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+  L.querySelector('tbody').onclick=function(ev){
+    const tr=ev.target.closest('tr[data-ifid]');
+    if(!tr)return;
+    pickIf(tr.getAttribute('data-ifid'));
+  };
+}
+
 async function load(){
   const r=await fetch('/api/data',{headers:hdr()});
   if(r.status===401){logout();return;}
   ST=await r.json();
   paint();
+  await loadCred();
 }
 function paint(){
   for(const k of['US','RU']){

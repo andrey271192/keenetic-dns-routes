@@ -55,6 +55,40 @@ async def get_data(x_admin_password: str = Header("")):
     return load_store()
 
 
+@app.get("/api/keenetic-env")
+async def keenetic_env(x_admin_password: str = Header("")):
+    """Логин и факт наличия пароля (сам пароль в ответ не кладём — только из .env на сервере)."""
+    _chk(x_admin_password)
+    return {
+        "login": config.KEENETIC_LOGIN,
+        "password_configured": bool(config.KEENETIC_PASSWORD),
+        "hint": "Пароль смотри только в server/.env (KEENETIC_PASSWORD); в браузер не передаётся.",
+    }
+
+
+@app.get("/api/routers/{rid}/interfaces")
+async def router_interfaces(rid: str, x_admin_password: str = Header("")):
+    _chk(x_admin_password)
+    if not config.KEENETIC_PASSWORD:
+        raise HTTPException(400, "Задайте KEENETIC_PASSWORD в .env")
+    cur = load_store()
+    r = next((x for x in cur.get("routers") or [] if x.get("id") == rid), None)
+    if not r:
+        raise HTTPException(404, "Роутер не найден")
+
+    def _run():
+        k = KeeneticRCI(
+            r["rci_base_url"], config.KEENETIC_LOGIN, config.KEENETIC_PASSWORD
+        )
+        return k.list_interfaces()
+
+    try:
+        items = await asyncio.to_thread(_run)
+    except KeeneticRCIError as e:
+        raise HTTPException(502, str(e)) from e
+    return {"interfaces": items}
+
+
 class PutDataBody(BaseModel):
     groups: dict[str, dict] | None = None
     routers: list[dict] | None = None

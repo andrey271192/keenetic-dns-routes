@@ -90,6 +90,42 @@ class KeeneticRCI:
         if r2.status_code not in (200, 201, 202):
             raise KeeneticRCIError(f"POST /auth HTTP {r2.status_code}")
 
+    def list_interfaces(self) -> list[dict[str, Any]]:
+        """GET /rci/show/interface — id, type, description, state (как gokeenapi)."""
+        with self._client_ctx() as client:
+            self._auth(client)
+            r = client.get("/rci/show/interface")
+            if r.status_code != 200:
+                raise KeeneticRCIError(f"show/interface HTTP {r.status_code}")
+            data = r.json()
+            if not isinstance(data, dict):
+                raise KeeneticRCIError("show/interface: ожидался объект JSON")
+            rows: list[dict[str, Any]] = []
+            for key, body in data.items():
+                if not isinstance(body, dict) or str(key).startswith("_"):
+                    continue
+                iid = str(body.get("id") or body.get("Id") or key)
+                typ = str(body.get("type") or body.get("Type") or "")
+                desc = str(body.get("description") or body.get("Description") or "")
+                state = str(body.get("state") or body.get("State") or "")
+                link = str(body.get("link") or body.get("Link") or "")
+                conn = str(body.get("connected") or body.get("Connected") or "")
+                addr = str(body.get("address") or body.get("Address") or "")
+                rows.append(
+                    {
+                        "id": iid,
+                        "type": typ,
+                        "description": desc,
+                        "state": state,
+                        "link": link,
+                        "connected": conn,
+                        "address": addr,
+                        "label": f"{iid} — {desc or typ or 'интерфейс'}",
+                    }
+                )
+            rows.sort(key=lambda x: x["id"].lower())
+            return rows
+
     def _parse_fqdn_response(self, data: dict[str, Any]) -> dict[str, list[str]]:
         out: dict[str, list[str]] = {}
         for name, body in data.items():
