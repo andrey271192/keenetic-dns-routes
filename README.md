@@ -64,6 +64,16 @@ sudo systemctl restart keenetic-dns-routes
 
 Без git: скопируй каталог проекта поверх, затем снова `sudo bash update.sh` или команды выше.
 
+## Удаление с сервера (одной командой)
+
+Останавливается `keenetic-dns-routes`, удаляется unit и каталог **`/opt/keenetic-dns-routes`**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/andrey271192/keenetic-dns-routes/main/uninstall.sh | sudo bash
+```
+
+Из каталога установки: `sudo bash uninstall.sh`
+
 ## Поддержка
 
 - **GitHub:** [andrey271192](https://github.com/andrey271192)
