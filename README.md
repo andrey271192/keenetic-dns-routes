@@ -77,11 +77,9 @@ curl -fsSL https://raw.githubusercontent.com/andrey271192/keenetic-dns-routes/ma
 ## Поддержка
 
 - **GitHub:** [andrey271192](https://github.com/andrey271192)
-- **Boosty:** [донат](https://boosty.to/andrey27/donate) — **Sponsor** в репо (`.github/FUNDING.yml`: Boosty + Ozon)
+- **Boosty:** [Поддержка](https://boosty.to/andrey27/donate) 
 - **Поддержка проекта (Ozon Bank, СБП):** [ссылка](https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798)
 - **Telegram:** [@Iot_andrey](https://t.me/Iot_andrey)
-
-В веб-интерфейсе плашка автора в `templates/index.html` — только снизу экрана (`#kdns-foot-strip`).
 
 ## Связь
 
