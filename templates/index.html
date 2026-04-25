@@ -7,7 +7,7 @@
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     :root{--bg:#0a0a0b;--card:#161618;--bd:#2a2a2e;--tx:#f4f4f5;--mu:#71717a;--ac:#3b82f6;--ok:#22c55e;--er:#ef4444}
-    body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+    body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;padding-bottom:46px}
     .hdr{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .hdr h1{font-size:17px;font-weight:800}
     .hdr small{color:var(--mu);font-weight:500}
@@ -44,6 +44,16 @@
     #edit-router-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:520px;width:100%;padding:18px}
     .if-row{cursor:pointer}
     .if-row:hover{background:rgba(59,130,246,.12)}
+    .kdns-author{font-size:11px;font-weight:600;color:var(--mu);padding:8px 20px;border-bottom:1px solid var(--bd);background:rgba(59,130,246,.08);display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;justify-content:center}
+    .kdns-author a{color:var(--ac);text-decoration:none;border-bottom:1px solid rgba(59,130,246,.4)}
+    .kdns-author a:hover{color:#93c5fd;border-bottom-color:#93c5fd}
+    .kdns-author .kdns-am{color:var(--tx);font-weight:700;opacity:.95}
+    .kdns-foot{position:fixed;bottom:0;left:0;right:0;z-index:50;font-size:11px;font-weight:600;color:var(--mu);
+      padding:10px 20px;border-top:1px solid var(--bd);background:rgba(10,10,11,.96);
+      display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;justify-content:center;backdrop-filter:blur(8px)}
+    .kdns-foot a{color:var(--ac);text-decoration:none;border-bottom:1px solid rgba(59,130,246,.45);font-weight:700}
+    .kdns-foot a:hover{color:#93c5fd;border-bottom-color:#93c5fd}
+    .kdns-foot .kdns-am{color:var(--tx);font-weight:700;margin-right:4px}
   </style>
 </head>
 <body>
@@ -59,6 +69,16 @@
 <div class="hdr">
   <div><h1>Keenetic DNS Routes</h1><small>Списки DNS-маршрутизации (без Neo) · порт 8001</small></div>
   <button class="btn btn-d" onclick="logout()">Выйти</button>
+</div>
+<div class="kdns-author" lang="ru" id="kdns-author-strip">
+  <span class="kdns-am">автор ·</span>
+  <a href="https://github.com/andrey271192" target="_blank" rel="noopener noreferrer" title="Репозитории на GitHub">GitHub andrey271192</a>
+  <span>·</span>
+  <a href="https://boosty.to/andrey27/donate" target="_blank" rel="noopener noreferrer">Boosty</a>
+  <span>·</span>
+  <a href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798" target="_blank" rel="noopener noreferrer" title="Поддержка проекта (Ozon Bank, СБП)">Поддержка</a>
+  <span>·</span>
+  <a href="https://t.me/Iot_andrey" target="_blank" rel="noopener noreferrer">Telegram @Iot_andrey</a>
 </div>
 
 <div class="wrap">
@@ -243,10 +263,10 @@ function paint(){
     <td style="font-size:11px;word-break:break-all">${esc(ro.rci_base_url)}</td>
     <td style="font-size:11px">${fromEnv?'<span style="color:var(--mu)">из .env</span>':esc(lo)}</td>
     <td style="font-size:11px">${fromEnv?'<span class="pill ok">из .env</span>':(hasPw?'<span class="pill ok">есть</span>':'<span class="pill bad">нет</span>')}</td>
-    <td><input type="checkbox" ${ro.enabled?'checked':''} onchange="toggleEn(${JSON.stringify(iid)},this.checked)"/></td>
-    <td><button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="openEditRouter(${JSON.stringify(iid)})">Изм.</button>
-    <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="testR(${JSON.stringify(iid)})">Тест</button>
-    <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick="delR(${JSON.stringify(iid)})">✕</button></td>
+    <td><input type="checkbox" ${ro.enabled?'checked':''} onchange='toggleEn(${JSON.stringify(iid)},this.checked)'/></td>
+    <td><button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick='openEditRouter(${JSON.stringify(iid)})'>Изм.</button>
+    <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick='testR(${JSON.stringify(iid)})'>Тест</button>
+    <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick='delR(${JSON.stringify(iid)})'>✕</button></td>
   </tr>`;
   }).join('')||'<tr><td colspan="7" style="color:var(--mu)">Нет роутеров</td></tr>';
 }
@@ -333,7 +353,9 @@ async function addR(){
 }
 async function delR(id){
   if(!confirm('Удалить?'))return;
-  await fetch('/api/routers/'+id,{method:'DELETE',headers:hdr()});
+  const r=await fetch('/api/routers/'+encodeURIComponent(id),{method:'DELETE',headers:hdr()});
+  if(r.status===401){logout();return;}
+  if(!r.ok){alert(await r.text());return;}
   await load();
 }
 async function toggleEn(id,en){
@@ -343,8 +365,16 @@ async function toggleEn(id,en){
   await fetch('/api/data',{method:'PUT',headers:hdr(),body:JSON.stringify({groups,routers:ST.routers})});
 }
 async function testR(id){
-  const r=await fetch('/api/test-router/'+id,{method:'POST',headers:hdr()});
-  const j=await r.json();
+  const r=await fetch('/api/test-router/'+encodeURIComponent(id),{method:'POST',headers:hdr()});
+  if(r.status===401){logout();return;}
+  const raw=await r.text();
+  let j=null; try{j=JSON.parse(raw);}catch(_){}
+  if(!r.ok){
+    const d=j&&j.detail;
+    alert('Ошибка: '+(typeof d==='string'?d:Array.isArray(d)?d.map(x=>x.msg||x).join('; '):raw||r.status));
+    return;
+  }
+  if(!j){alert('Ошибка: '+raw);return;}
   alert(j.ok?'OK: '+j.message:'Ошибка: '+j.message);
 }
 
@@ -381,5 +411,15 @@ async function applySel(){
   }
 })();
 </script>
+<div class="kdns-foot" lang="ru" id="kdns-foot-strip" aria-label="Автор и ссылки">
+  <span class="kdns-am">Keenetic DNS Routes ·</span>
+  <a href="https://github.com/andrey271192" target="_blank" rel="noopener noreferrer" title="GitHub">GitHub</a>
+  <span>·</span>
+  <a href="https://boosty.to/andrey27/donate" target="_blank" rel="noopener noreferrer">Boosty</a>
+  <span>·</span>
+  <a href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798" target="_blank" rel="noopener noreferrer" title="Поддержка проекта (Ozon Bank, СБП)">Поддержка</a>
+  <span>·</span>
+  <a href="https://t.me/Iot_andrey" target="_blank" rel="noopener noreferrer">@Iot_andrey</a>
+</div>
 </body>
 </html>
