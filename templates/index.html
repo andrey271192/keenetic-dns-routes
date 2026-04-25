@@ -44,16 +44,12 @@
     #edit-router-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:520px;width:100%;padding:18px}
     .if-row{cursor:pointer}
     .if-row:hover{background:rgba(59,130,246,.12)}
-    .kdns-author{font-size:11px;font-weight:600;color:var(--mu);padding:8px 20px;border-bottom:1px solid var(--bd);background:rgba(59,130,246,.08);display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;justify-content:center}
-    .kdns-author a{color:var(--ac);text-decoration:none;border-bottom:1px solid rgba(59,130,246,.4)}
-    .kdns-author a:hover{color:#93c5fd;border-bottom-color:#93c5fd}
-    .kdns-author .kdns-am{color:var(--tx);font-weight:700;opacity:.95}
     .kdns-foot{position:fixed;bottom:0;left:0;right:0;z-index:50;font-size:11px;font-weight:600;color:var(--mu);
-      padding:10px 20px;border-top:1px solid var(--bd);background:rgba(10,10,11,.96);
-      display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;justify-content:center;backdrop-filter:blur(8px)}
+      padding:10px 20px;border-top:1px solid var(--bd);background:rgba(59,130,246,.1);
+      display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;justify-content:center;backdrop-filter:blur(10px)}
     .kdns-foot a{color:var(--ac);text-decoration:none;border-bottom:1px solid rgba(59,130,246,.45);font-weight:700}
     .kdns-foot a:hover{color:#93c5fd;border-bottom-color:#93c5fd}
-    .kdns-foot .kdns-am{color:var(--tx);font-weight:700;margin-right:4px}
+    .kdns-foot .kdns-am{color:var(--tx);font-weight:700;opacity:.95}
   </style>
 </head>
 <body>
@@ -69,16 +65,6 @@
 <div class="hdr">
   <div><h1>Keenetic DNS Routes</h1><small>Списки DNS-маршрутизации (без Neo) · порт 8001</small></div>
   <button class="btn btn-d" onclick="logout()">Выйти</button>
-</div>
-<div class="kdns-author" lang="ru" id="kdns-author-strip">
-  <span class="kdns-am">автор ·</span>
-  <a href="https://github.com/andrey271192" target="_blank" rel="noopener noreferrer" title="Репозитории на GitHub">GitHub andrey271192</a>
-  <span>·</span>
-  <a href="https://boosty.to/andrey27/donate" target="_blank" rel="noopener noreferrer">Boosty</a>
-  <span>·</span>
-  <a href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798" target="_blank" rel="noopener noreferrer" title="Поддержка проекта (Ozon Bank, СБП)">Поддержка</a>
-  <span>·</span>
-  <a href="https://t.me/Iot_andrey" target="_blank" rel="noopener noreferrer">Telegram @Iot_andrey</a>
 </div>
 
 <div class="wrap">
@@ -412,14 +398,14 @@ async function applySel(){
 })();
 </script>
 <div class="kdns-foot" lang="ru" id="kdns-foot-strip" aria-label="Автор и ссылки">
-  <span class="kdns-am">Keenetic DNS Routes ·</span>
-  <a href="https://github.com/andrey271192" target="_blank" rel="noopener noreferrer" title="GitHub">GitHub</a>
+  <span class="kdns-am">автор ·</span>
+  <a href="https://github.com/andrey271192" target="_blank" rel="noopener noreferrer" title="Репозитории на GitHub">GitHub andrey271192</a>
   <span>·</span>
   <a href="https://boosty.to/andrey27/donate" target="_blank" rel="noopener noreferrer">Boosty</a>
   <span>·</span>
   <a href="https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798" target="_blank" rel="noopener noreferrer" title="Поддержка проекта (Ozon Bank, СБП)">Поддержка</a>
   <span>·</span>
-  <a href="https://t.me/Iot_andrey" target="_blank" rel="noopener noreferrer">@Iot_andrey</a>
+  <a href="https://t.me/Iot_andrey" target="_blank" rel="noopener noreferrer">Telegram @Iot_andrey</a>
 </div>
 </body>
 </html>

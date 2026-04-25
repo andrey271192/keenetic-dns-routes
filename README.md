@@ -64,6 +64,15 @@ sudo systemctl restart keenetic-dns-routes
 
 Без git: скопируй каталог проекта поверх, затем снова `sudo bash update.sh` или команды выше.
 
+## Поддержка
+
+- **GitHub:** [andrey271192](https://github.com/andrey271192)
+- **Boosty:** [донат](https://boosty.to/andrey27/donate) — **Sponsor** в репо (`.github/FUNDING.yml`: Boosty + Ozon)
+- **Поддержка проекта (Ozon Bank, СБП):** [ссылка](https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798)
+- **Telegram:** [@Iot_andrey](https://t.me/Iot_andrey)
+
+В веб-интерфейсе плашка автора в `templates/index.html` — только снизу экрана (`#kdns-foot-strip`).
+
 ## Связь
 
 Проект рядом по смыслу с [keenetic-unified](https://github.com/andrey271192/keenetic-unified) (Neo + дашборд) и [domen_hydra](https://github.com/andrey271192/domen_hydra) (только Neo-конфиг), но предназначен **только** для встроенной DNS-маршрутизации без Neo.
