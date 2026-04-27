@@ -6,11 +6,51 @@
 
 Логика синхронизации списков с роутером совместима с подходом [gokeenapi](https://github.com/Noksa/gokeenapi) (`GET /rci/object-group/fqdn`, `GET /rci/dns-proxy/route`, `POST /rci/` с массивом `{"parse":"…"}`).
 
+## Важно: здесь не SSH — и отличие от «белого» IP
+
+Этот сервис **не подключается по SSH** к роутеру: настройки применяются через **NDM RCI по KeenDNS HTTP Proxy** (см. блок **«Требования»** ниже) — модель доступа, которую Keenetic описывает для работы через облако **без** прямого Telnet/SSH.
+
+Проекты **[Keenetic Unified](https://github.com/andrey271192/keenetic-unified)**, **[domen_hydra](https://github.com/andrey271192/domen_hydra)** и **[Keenetic SSH](https://github.com/andrey271192/Keenetic_SSH)** для управления с VPS используют **прямой SSH** на WAN; для них нужен **публичный («белый») IPv4** или иной **прямой** доступ к порту SSH. В сценарии KeenDNS **«только облако»**, когда по документации Keenetic доступна **только веб-морда** по HTTP/HTTPS на заданных портах, а **SSH через облако не работает**, — **эти** проекты к роутеру по SSH **не подключатся**; **keenetic-dns-routes** при корректно настроенном HTTP Proxy может продолжать работать.
+
+Сводная таблица и формулировка производителя про облако vs SSH: [Keenetic Unified — README](https://github.com/andrey271192/keenetic-unified/blob/main/README.md#white-ip-wan-ssh).
+
 ## Требования
 
 - KeeneticOS **≥ 5.0.1** (DNS-based routes).
 - Доступ к RCI с VPS: **KeenDNS** + **HTTP Proxy** для API (четвёртый уровень `rci.…`, порт **79**): [инструкция Keenetic](https://support.keenetic.com/hero/kn-1012/en/55035-using-api-methods-through-the-http-proxy-service.html).
 - Пользователю роутера выданы права на **HTTP Proxy**. Учётка API: по умолчанию **`KEENETIC_*` в `.env`**, либо у каждого роутера свои поля / один раз URL `http(s)://логин:пароль@хост:порт` (при сохранении логин/пароль переносятся в поля).
+
+> Entware/SSH **не требуется** для `keenetic-dns-routes` (здесь всё через RCI по HTTP Proxy), но на практике часто нужно для обслуживания роутера. Ниже — шпаргалка.
+
+### 📦 Установка Entware на Keenetic
+
+━━━━━━━━━━━━━━━━━━━━━━
+⚠️ Определи свою архитектуру
+- Mipsel — роутеры на чипе MT7628/MT7621
+- Aarch64 — роутеры на чипе MT7622/MT7981/MT7988 (ARM)
+━━━━━━━━━━━━━━━━━━━━━━
+💡 Совет  
+Начиная с KeeneticOS 4.2 Entware можно установить прямо через браузер — просто открой `192.168.1.1/a` и следуй инструкции.
+━━━━━━━━━━━━━━━━━━━━━━
+🚀 Установка онлайн — одной командой
+
+🔵 Mipsel (MT7628/MT7621)
+```sh
+opkg disk storage:/ https://bin.entware.net/mipselsf-k3.4/installer/mipsel-installer.tar.gz
+```
+
+🟢 Aarch64 (MT7622/MT7981/MT7988)
+```sh
+opkg disk storage:/ https://bin.entware.net/aarch64-k3.10/installer/aarch64-installer.tar.gz
+```
+
+⏳ Дождись окончания установки — это займёт пару минут. После этого Entware готов к работе.
+
+🔌 Подключение по SSH  
+📋 Данные для входа
+- Логин: `root`
+- Пароль: `keenetic`
+- Порт: `222`
 
 ## Установка (Ubuntu)
 
