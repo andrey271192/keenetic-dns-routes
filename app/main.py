@@ -256,6 +256,89 @@ async def patch_router(rid: str, b: PatchRouterBody, x_admin_password: str = Hea
     return r
 
 
+@app.get("/api/routers/{rid}/tunnel-cmd")
+async def tunnel_cmd(rid: str, x_admin_password: str = Header("")):
+    """Назначить порт тоннеля и вернуть команду установки для роутера."""
+    _chk(x_admin_password)
+    if not config.VPS_SSH_HOST:
+        raise HTTPException(400, "VPS_SSH_HOST не задан в .env — укажи публичный IP/домен VPS")
+    if not config.VPS_SSH_PASS:
+        raise HTTPException(400, "VPS_SSH_PASS не задан в .env — укажи пароль SSH для VPS")
+
+    cur = load_store()
+    routers = list(cur.get("routers") or [])
+    idx = next((i for i, x in enumerate(routers) if x.get("id") == rid), -1)
+    if idx < 0:
+        raise HTTPException(404, "Роутер не найден")
+
+    r = dict(routers[idx])
+
+    # Переиспользовать уже назначенный порт или выдать новый
+    if r.get("tunnel_port"):
+        port = int(r["tunnel_port"])
+    else:
+        used = {int(x.get("tunnel_port")) for x in routers if x.get("tunnel_port")}
+        port = config.TUNNEL_PORT_START
+        while port in used:
+            port += 1
+        r["tunnel_port"] = port
+        routers[idx] = r
+        cur["routers"] = routers
+        save_store(cur)
+
+    vps_host = config.VPS_SSH_HOST
+    vps_port = config.VPS_SSH_PORT
+    vps_user = config.VPS_SSH_USER
+    vps_pass = config.VPS_SSH_PASS.replace("'", "'\\''")
+
+    cmd = (
+        f"export PATH=\"/opt/bin:/opt/sbin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH\"\n\n"
+        f"# Установить зависимости\n"
+        f"opkg install autossh sshpass 2>/dev/null; true\n\n"
+        f"# Создать скрипт тоннеля\n"
+        f"cat > /opt/bin/kdns_tunnel.sh << 'ENDSCRIPT'\n"
+        f"#!/bin/sh\n"
+        f"PATH=\"/opt/bin:/opt/sbin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH\"\n"
+        f"exec sshpass -p '{vps_pass}' autossh -M 0 \\\n"
+        f"  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\\n"
+        f"  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \\\n"
+        f"  -N -R {port}:localhost:81 {vps_user}@{vps_host} -p {vps_port}\n"
+        f"ENDSCRIPT\n"
+        f"chmod +x /opt/bin/kdns_tunnel.sh\n\n"
+        f"# Добавить в cron (запуск если не работает, каждые 3 мин)\n"
+        f"(crontab -l 2>/dev/null | grep -v kdns_tunnel; "
+        f"echo '*/3 * * * * pgrep -f kdns_tunnel.sh || /opt/bin/kdns_tunnel.sh &') | crontab -\n\n"
+        f"# Запустить сейчас\n"
+        f"pkill -f kdns_tunnel.sh 2>/dev/null; sleep 1\n"
+        f"nohup /opt/bin/kdns_tunnel.sh >/dev/null 2>&1 &\n\n"
+        f"echo \"Тоннель запущен: порт 81 → VPS:{port}\"\n"
+        f"echo \"URL для платформы: http://localhost:{port}\""
+    )
+
+    return {
+        "tunnel_port": port,
+        "rci_url": f"http://localhost:{port}",
+        "cmd": cmd,
+    }
+
+
+@app.delete("/api/routers/{rid}/tunnel")
+async def tunnel_remove(rid: str, x_admin_password: str = Header("")):
+    """Снять назначение тоннельного порта с роутера."""
+    _chk(x_admin_password)
+    cur = load_store()
+    routers = list(cur.get("routers") or [])
+    idx = next((i for i, x in enumerate(routers) if x.get("id") == rid), -1)
+    if idx < 0:
+        raise HTTPException(404, "Роутер не найден")
+    r = dict(routers[idx])
+    r.pop("tunnel_port", None)
+    routers[idx] = r
+    cur["routers"] = routers
+    save_store(cur)
+    return {"ok": True}
+
+
 @app.post("/api/test-router/{rid}")
 async def test_router(rid: str, x_admin_password: str = Header("")):
     _chk(x_admin_password)

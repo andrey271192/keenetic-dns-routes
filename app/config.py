@@ -16,3 +16,10 @@ ADMIN_PASSWORD = (os.getenv("ADMIN_PASSWORD") or "admin").strip()
 # Дефолт для роутеров без своих keenetic_* и без user:pass@ в URL (можно оставить пустым)
 KEENETIC_LOGIN = (os.getenv("KEENETIC_LOGIN") or "admin").strip()
 KEENETIC_PASSWORD = (os.getenv("KEENETIC_PASSWORD") or "").strip()
+
+# Reverse SSH tunnel — для роутеров без белого IP
+VPS_SSH_HOST = (os.getenv("VPS_SSH_HOST") or "").strip()
+VPS_SSH_PORT = int(os.getenv("VPS_SSH_PORT") or "22")
+VPS_SSH_USER = (os.getenv("VPS_SSH_USER") or "root").strip()
+VPS_SSH_PASS = (os.getenv("VPS_SSH_PASS") or "").strip()
+TUNNEL_PORT_START = int(os.getenv("TUNNEL_PORT_START") or "20100")

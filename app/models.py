@@ -18,6 +18,7 @@ class RouterSpec(BaseModel):
     enabled: bool = True
     keenetic_login: str = Field(default="", description="Логин Keenetic для HTTP Proxy / RCI")
     keenetic_password: str = Field(default="", description="Пароль Keenetic для RCI")
+    tunnel_port: int | None = Field(default=None, description="Порт обратного SSH-тоннеля на VPS (None = тоннель не настроен)")
 
 
 class StoreData(BaseModel):

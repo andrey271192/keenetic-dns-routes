@@ -38,8 +38,12 @@
     #auth-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;align-items:center;justify-content:center}
     #auth-bg.on{display:flex}
     #auth-box{background:var(--card);border:1px solid var(--bd);padding:28px;border-radius:16px;width:min(360px,92vw)}
-    #ifscan-modal,#edit-router-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;align-items:center;justify-content:center;padding:16px}
-    #ifscan-modal.on,#edit-router-modal.on{display:flex}
+    #ifscan-modal,#edit-router-modal,#tunnel-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;align-items:center;justify-content:center;padding:16px}
+    #ifscan-modal.on,#edit-router-modal.on,#tunnel-modal.on{display:flex}
+    #tunnel-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:680px;width:100%;padding:22px}
+    .tunnel-cmd{background:#111;border:1px solid var(--bd);border-radius:10px;padding:14px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.6;color:#a3e635;white-space:pre;overflow-x:auto;max-height:260px;overflow-y:auto;margin:10px 0}
+    .tunnel-url{background:#111;border:1px solid #22c55e44;border-radius:8px;padding:10px 14px;font-family:ui-monospace,monospace;font-size:13px;color:var(--ok);margin:8px 0}
+    .btn-tunnel{background:#7c3aed;color:#fff}
     #ifscan-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:900px;width:100%;max-height:88vh;overflow:auto;padding:18px}
     #edit-router-box{background:var(--card);border:1px solid var(--bd);border-radius:16px;max-width:520px;width:100%;padding:18px}
     .if-row{cursor:pointer}
@@ -148,6 +152,22 @@
   </div>
 </div></div>
 
+<div id="tunnel-modal"><div id="tunnel-box">
+  <h3 style="margin-bottom:6px;font-size:16px">Обратный SSH-тоннель</h3>
+  <p style="font-size:12px;color:var(--mu);margin-bottom:14px">Для роутеров без белого IP. Скопируй команду и выполни в SSH на роутере — он сам подключится к VPS и откроет порт.</p>
+  <div style="font-size:12px;color:var(--mu);margin-bottom:4px">Команда для SSH роутера:</div>
+  <div class="tunnel-cmd" id="tunnel-cmd-text"></div>
+  <button class="btn btn-d" style="font-size:11px;padding:6px 14px;margin-bottom:14px" onclick="copyTunnelCmd()">📋 Скопировать команду</button>
+  <div style="font-size:12px;color:var(--mu);margin-bottom:4px">После запуска тоннеля — новый RCI URL для этого роутера:</div>
+  <div class="tunnel-url" id="tunnel-url-text"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    <button class="btn btn-b" onclick="applyTunnelUrl()">✓ Применить URL автоматически</button>
+    <button class="btn btn-d" onclick="closeTunnelModal()">Закрыть</button>
+    <button class="btn" style="background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed44;margin-left:auto;font-size:11px;padding:6px 12px" onclick="removeTunnel()">✕ Сбросить тоннель</button>
+  </div>
+  <div id="tunnel-msg" style="margin-top:10px;font-size:12px;display:none"></div>
+</div></div>
+
 <div id="ifscan-modal"><div id="ifscan-box">
   <h3 style="margin-bottom:12px;font-size:16px">Интерфейсы с роутера (RCI)</h3>
   <p style="font-size:12px;color:var(--mu);margin-bottom:10px">Выбери роутер → «Загрузить». Строка = то, что вписывается в <b>Interface ID</b> для текущей вкладки (US или RU). Обычно для VPN — <code>Wireguard0</code> / <code>OpenVPN0</code>, для провайдера — <code>PPPoE0</code> / <code>GigabitEthernet0</code> и т.п.</p>
@@ -250,8 +270,9 @@ function paint(){
     <td style="font-size:11px">${fromEnv?'<span style="color:var(--mu)">из .env</span>':esc(lo)}</td>
     <td style="font-size:11px">${fromEnv?'<span class="pill ok">из .env</span>':(hasPw?'<span class="pill ok">есть</span>':'<span class="pill bad">нет</span>')}</td>
     <td><input type="checkbox" ${ro.enabled?'checked':''} onchange='toggleEn(${JSON.stringify(iid)},this.checked)'/></td>
-    <td><button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick='openEditRouter(${JSON.stringify(iid)})'>Изм.</button>
+    <td style="white-space:nowrap"><button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick='openEditRouter(${JSON.stringify(iid)})'>Изм.</button>
     <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick='testR(${JSON.stringify(iid)})'>Тест</button>
+    <button type="button" class="btn" style="padding:4px 10px;font-size:11px;background:${ro.tunnel_port?'#7c3aed':'#3f3f46'};color:#fff" onclick='tunnelR(${JSON.stringify(iid)})' title="${ro.tunnel_port?'Тоннель активен — порт '+ro.tunnel_port:'Настроить обратный SSH-тоннель'}">⇄${ro.tunnel_port?' :'+ro.tunnel_port:' Тоннель'}</button>
     <button type="button" class="btn btn-d" style="padding:4px 10px;font-size:11px" onclick='delR(${JSON.stringify(iid)})'>✕</button></td>
   </tr>`;
   }).join('')||'<tr><td colspan="7" style="color:var(--mu)">Нет роутеров</td></tr>';
@@ -386,6 +407,65 @@ async function applySel(){
   const j=await r.json();
   showLog((j.results||[]).map(x=>x.ok?`✓ ${x.router}\n${(x.log||[]).join('\n')}`:`✗ ${x.router}: ${x.error}`).join('\n\n'));
   await load();
+}
+
+let _tunnelRouterId=null;
+async function tunnelR(id){
+  _tunnelRouterId=id;
+  const msg=document.getElementById('tunnel-msg');
+  msg.style.display='none';
+  document.getElementById('tunnel-cmd-text').textContent='Загрузка…';
+  document.getElementById('tunnel-url-text').textContent='';
+  document.getElementById('tunnel-modal').classList.add('on');
+  const r=await fetch(`/api/routers/${encodeURIComponent(id)}/tunnel-cmd`,{headers:hdr()});
+  if(r.status===401){logout();return;}
+  if(!r.ok){
+    const j=await r.json().catch(()=>({}));
+    document.getElementById('tunnel-cmd-text').textContent='Ошибка: '+(j.detail||r.statusText);
+    return;
+  }
+  const j=await r.json();
+  document.getElementById('tunnel-cmd-text').textContent=j.cmd||'';
+  document.getElementById('tunnel-url-text').textContent=j.rci_url||'';
+}
+function closeTunnelModal(){
+  document.getElementById('tunnel-modal').classList.remove('on');
+  _tunnelRouterId=null;
+}
+function copyTunnelCmd(){
+  const txt=document.getElementById('tunnel-cmd-text').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const btn=event.target;btn.textContent='✓ Скопировано';setTimeout(()=>{btn.textContent='📋 Скопировать команду';},2000);
+  }).catch(()=>alert('Не удалось скопировать'));
+}
+async function applyTunnelUrl(){
+  if(!_tunnelRouterId)return;
+  const url=document.getElementById('tunnel-url-text').textContent.trim();
+  if(!url)return;
+  const msg=document.getElementById('tunnel-msg');
+  const r=await fetch(`/api/routers/${encodeURIComponent(_tunnelRouterId)}`,{method:'PATCH',headers:{...hdr(),'Content-Type':'application/json'},body:JSON.stringify({rci_base_url:url})});
+  if(r.status===401){logout();return;}
+  if(r.ok){
+    msg.style.color='var(--ok)';msg.textContent='✓ URL обновлён';msg.style.display='block';
+    await load();
+  } else {
+    const j=await r.json().catch(()=>({}));
+    msg.style.color='var(--er)';msg.textContent='Ошибка: '+(j.detail||r.statusText);msg.style.display='block';
+  }
+}
+async function removeTunnel(){
+  if(!_tunnelRouterId)return;
+  const msg=document.getElementById('tunnel-msg');
+  const r=await fetch(`/api/routers/${encodeURIComponent(_tunnelRouterId)}/tunnel`,{method:'DELETE',headers:hdr()});
+  if(r.status===401){logout();return;}
+  if(r.ok){
+    msg.style.color='var(--ok)';msg.textContent='✓ Тоннель сброшен';msg.style.display='block';
+    await load();
+    setTimeout(closeTunnelModal,1200);
+  } else {
+    const j=await r.json().catch(()=>({}));
+    msg.style.color='var(--er)';msg.textContent='Ошибка: '+(j.detail||r.statusText);msg.style.display='block';
+  }
 }
 
 (async()=>{
