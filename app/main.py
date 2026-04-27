@@ -402,6 +402,10 @@ echo '[3/4] Скрипт тоннеля + автозапуск...'
 cat > /opt/bin/kdns_tun <<'RUNEOF'
 #!/bin/sh
 PATH="/opt/bin:/opt/sbin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
+# GATETIME=0 — не сдаваться если первый коннект короткий (важно при фоне на BusyBox).
+# LOGFILE — autossh пишет диагностику сюда вместо syslog (которого может не быть).
+export AUTOSSH_GATETIME=0
+export AUTOSSH_LOGFILE=/tmp/kdns_tun.log
 exec autossh -M 0 \\
   -i /opt/etc/kdns_tk \\
   -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\
@@ -424,20 +428,27 @@ chmod +x /opt/etc/init.d/S99kdns_tun
 echo '[4/4] Запуск...'
 killall autossh 2>/dev/null || true
 sleep 1
-# stdin=/dev/null обязательно: иначе autossh ловит EOF от закрытой curl-трубы и сразу выходит.
-# subshell ( ... ) полностью отрывает процесс от родительского sh.
-( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )
-sleep 4
+rm -f /tmp/kdns_tun.log
+# Двойная защита: setsid если есть (полный отрыв от сессии), иначе subshell+nohup.
+if command -v setsid >/dev/null 2>&1; then
+  setsid /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 &
+else
+  ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )
+fi
+sleep 5
 if killall -0 autossh 2>/dev/null; then
   echo
   echo '=== OK ==='
   echo 'Тоннель: localhost:81 (роутер) -> VPS:{port}'
+  echo 'Лог: /tmp/kdns_tun.log'
   echo 'Возвращайся в браузер и жми "Проверить связь"'
 else
   echo
   echo '=== ОШИБКА: autossh не запустился в фоне ==='
-  echo 'Тест вручную (должно работать): /opt/bin/kdns_tun  (Ctrl+C для выхода)'
-  echo 'Если вручную работает — попробуй: ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )'
+  echo '--- /tmp/kdns_tun.log ---'
+  cat /tmp/kdns_tun.log 2>/dev/null || echo '(лог пустой)'
+  echo '-------------------------'
+  echo 'Тест вручную: /opt/bin/kdns_tun  (Ctrl+C для выхода)'
   exit 1
 fi
 """
