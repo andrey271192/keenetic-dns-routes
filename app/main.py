@@ -414,9 +414,9 @@ chmod +x /opt/bin/kdns_tun
 cat > /opt/etc/init.d/S99kdns_tun <<'INITEOF'
 #!/bin/sh
 case "$1" in
-  start)   killall -0 autossh 2>/dev/null || nohup /opt/bin/kdns_tun >/dev/null 2>&1 & ;;
+  start)   killall -0 autossh 2>/dev/null || ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & ) ;;
   stop)    killall autossh 2>/dev/null ;;
-  restart) killall autossh 2>/dev/null; sleep 1; nohup /opt/bin/kdns_tun >/dev/null 2>&1 & ;;
+  restart) killall autossh 2>/dev/null; sleep 1; ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & ) ;;
 esac
 INITEOF
 chmod +x /opt/etc/init.d/S99kdns_tun
@@ -424,8 +424,10 @@ chmod +x /opt/etc/init.d/S99kdns_tun
 echo '[4/4] Запуск...'
 killall autossh 2>/dev/null || true
 sleep 1
-nohup /opt/bin/kdns_tun >/dev/null 2>&1 &
-sleep 3
+# stdin=/dev/null обязательно: иначе autossh ловит EOF от закрытой curl-трубы и сразу выходит.
+# subshell ( ... ) полностью отрывает процесс от родительского sh.
+( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )
+sleep 4
 if killall -0 autossh 2>/dev/null; then
   echo
   echo '=== OK ==='
@@ -433,8 +435,9 @@ if killall -0 autossh 2>/dev/null; then
   echo 'Возвращайся в браузер и жми "Проверить связь"'
 else
   echo
-  echo '=== ОШИБКА: autossh не запустился ==='
-  echo 'Тест вручную: /opt/bin/kdns_tun  (Ctrl+C для выхода)'
+  echo '=== ОШИБКА: autossh не запустился в фоне ==='
+  echo 'Тест вручную (должно работать): /opt/bin/kdns_tun  (Ctrl+C для выхода)'
+  echo 'Если вручную работает — попробуй: ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )'
   exit 1
 fi
 """

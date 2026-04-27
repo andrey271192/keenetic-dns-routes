@@ -127,6 +127,7 @@
       <div style="min-width:100px"><label>Логин (если не .env)</label><input type="text" id="rl" placeholder="пусто = из .env"/></div>
       <div style="min-width:120px"><label>Пароль (если не .env)</label><input type="password" id="rp" placeholder="пусто = из .env" autocomplete="new-password"/></div>
       <div><label>&nbsp;</label><button class="btn btn-b" onclick="addR()">+ Добавить</button></div>
+      <div><label>&nbsp;</label><button class="btn" style="background:#7c3aed;color:#fff" onclick="addAndTunnel()" title="Создать роутер с base URL=http://localhost:NNNN и сразу открыть модалку тоннеля. Удобно для роутеров без белого IP.">⇄ Тоннель</button></div>
     </div>
     <div style="overflow-x:auto">
       <table class="tbl" id="rtbl"><thead><tr>
@@ -358,6 +359,36 @@ async function addR(){
   document.getElementById('rn').value='';document.getElementById('ru').value='';
   document.getElementById('rl').value='';document.getElementById('rp').value='';
   await load();
+}
+async function addAndTunnel(){
+  // Создать роутер с placeholder base URL (заменится после "Применить URL автоматически")
+  // и сразу открыть модалку тоннеля.
+  let name=document.getElementById('rn').value.trim();
+  let keenetic_login=document.getElementById('rl').value.trim();
+  let keenetic_password=document.getElementById('rp').value;
+  if(!name){
+    name=prompt('Имя роутера (для тоннеля):','Роутер без IP');
+    if(!name)return;
+  }
+  if(!keenetic_login){keenetic_login='admin';}
+  if(!keenetic_password){
+    const p=prompt('Пароль Keenetic для RCI (поле «Пароль» пустое):');
+    if(p===null)return;
+    keenetic_password=p;
+  }
+  await saveServer({skipLoad:true});
+  // base URL — временный, реальный придёт из tunnel-cmd (http://localhost:NNNN)
+  const r=await fetch('/api/routers',{method:'POST',headers:hdr(),body:JSON.stringify({
+    name, rci_base_url:'http://localhost:1', keenetic_login, keenetic_password
+  })});
+  if(r.status===401){logout();return;}
+  if(!r.ok){alert(await r.text());return;}
+  const j=await r.json();
+  document.getElementById('rn').value='';document.getElementById('ru').value='';
+  document.getElementById('rl').value='';document.getElementById('rp').value='';
+  await load();
+  // Открыть модалку тоннеля для нового роутера
+  await tunnelR(j.id);
 }
 async function delR(id){
   if(!confirm('Удалить?'))return;
