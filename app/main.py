@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import socket
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, Query
@@ -293,8 +294,9 @@ async def tunnel_cmd(rid: str, x_admin_password: str = Header("")):
 
     cmd = (
         f"export PATH=\"/opt/bin:/opt/sbin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH\"\n\n"
-        f"# Установить зависимости\n"
-        f"opkg install autossh sshpass 2>/dev/null; true\n\n"
+        f"# Установить зависимости (autossh, sshpass, cronie для watchdog)\n"
+        f"opkg install autossh sshpass cronie 2>/dev/null; true\n"
+        f"/opt/etc/init.d/S10crond start 2>/dev/null; true\n\n"
         f"# Создать скрипт тоннеля\n"
         f"cat > /opt/bin/kdns_tunnel.sh << 'ENDSCRIPT'\n"
         f"#!/bin/sh\n"
@@ -305,11 +307,11 @@ async def tunnel_cmd(rid: str, x_admin_password: str = Header("")):
         f"  -N -R {port}:localhost:81 {vps_user}@{vps_host} -p {vps_port}\n"
         f"ENDSCRIPT\n"
         f"chmod +x /opt/bin/kdns_tunnel.sh\n\n"
-        f"# Добавить в cron (запуск если не работает, каждые 3 мин)\n"
+        f"# Watchdog через cron: перезапуск каждые 3 мин если не работает\n"
         f"(crontab -l 2>/dev/null | grep -v kdns_tunnel; "
-        f"echo '*/3 * * * * pgrep -f kdns_tunnel.sh || /opt/bin/kdns_tunnel.sh &') | crontab -\n\n"
+        f"echo '*/3 * * * * killall -0 autossh 2>/dev/null || /opt/bin/kdns_tunnel.sh &') | crontab -\n\n"
         f"# Запустить сейчас\n"
-        f"pkill -f kdns_tunnel.sh 2>/dev/null; sleep 1\n"
+        f"killall autossh 2>/dev/null; sleep 1\n"
         f"nohup /opt/bin/kdns_tunnel.sh >/dev/null 2>&1 &\n\n"
         f"echo \"Тоннель запущен: порт 81 → VPS:{port}\"\n"
         f"echo \"URL для платформы: http://localhost:{port}\""
@@ -337,6 +339,29 @@ async def tunnel_remove(rid: str, x_admin_password: str = Header("")):
     cur["routers"] = routers
     save_store(cur)
     return {"ok": True}
+
+
+@app.get("/api/routers/{rid}/tunnel-status")
+async def tunnel_status(rid: str, x_admin_password: str = Header("")):
+    """Проверить: слушает ли тоннельный порт на localhost VPS прямо сейчас."""
+    _chk(x_admin_password)
+    cur = load_store()
+    r = next((x for x in cur.get("routers") or [] if x.get("id") == rid), None)
+    if not r:
+        raise HTTPException(404, "Роутер не найден")
+    port = r.get("tunnel_port")
+    if not port:
+        return {"active": False, "reason": "tunnel_port не назначен"}
+
+    def _check() -> bool:
+        try:
+            with socket.create_connection(("127.0.0.1", int(port)), timeout=2):
+                return True
+        except OSError:
+            return False
+
+    active = await asyncio.to_thread(_check)
+    return {"active": active, "tunnel_port": port}
 
 
 @app.post("/api/test-router/{rid}")

@@ -163,6 +163,7 @@
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
     <button class="btn btn-b" onclick="applyTunnelUrl()">✓ Применить URL автоматически</button>
     <button class="btn btn-d" onclick="closeTunnelModal()">Закрыть</button>
+    <button class="btn" style="background:#0f2;color:#000;font-size:11px;padding:6px 12px" onclick="checkTunnelStatus()">⟳ Проверить связь</button>
     <button class="btn" style="background:#7c3aed22;color:#a78bfa;border:1px solid #7c3aed44;margin-left:auto;font-size:11px;padding:6px 12px" onclick="removeTunnel()">✕ Сбросить тоннель</button>
   </div>
   <div id="tunnel-msg" style="margin-top:10px;font-size:12px;display:none"></div>
@@ -451,6 +452,19 @@ async function applyTunnelUrl(){
   } else {
     const j=await r.json().catch(()=>({}));
     msg.style.color='var(--er)';msg.textContent='Ошибка: '+(j.detail||r.statusText);msg.style.display='block';
+  }
+}
+async function checkTunnelStatus(){
+  if(!_tunnelRouterId)return;
+  const msg=document.getElementById('tunnel-msg');
+  msg.style.color='var(--mu)';msg.textContent='Проверяю порт…';msg.style.display='block';
+  const r=await fetch(`/api/routers/${encodeURIComponent(_tunnelRouterId)}/tunnel-status`,{headers:hdr()});
+  if(r.status===401){logout();return;}
+  const j=await r.json().catch(()=>({}));
+  if(j.active){
+    msg.style.color='var(--ok)';msg.textContent=`✓ Тоннель активен — порт ${j.tunnel_port} слушает`;
+  } else {
+    msg.style.color='var(--er)';msg.textContent=`✗ Порт ${j.tunnel_port||'?'} не отвечает — запусти команду на роутере`;
   }
 }
 async function removeTunnel(){
