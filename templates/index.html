@@ -435,9 +435,29 @@ function closeTunnelModal(){
 }
 function copyTunnelCmd(){
   const txt=document.getElementById('tunnel-cmd-text').textContent;
-  navigator.clipboard.writeText(txt).then(()=>{
-    const btn=event.target;btn.textContent='✓ Скопировано';setTimeout(()=>{btn.textContent='📋 Скопировать команду';},2000);
-  }).catch(()=>alert('Не удалось скопировать'));
+  const btn=(typeof event!=='undefined'&&event&&event.target)?event.target:document.querySelector('button[onclick="copyTunnelCmd()"]');
+  const flash=()=>{if(btn){const o=btn.textContent;btn.textContent='✓ Скопировано';setTimeout(()=>{btn.textContent=o;},2000);}};
+  const fail=()=>{
+    const ta=document.getElementById('tunnel-cmd-text');
+    const r=document.createRange();r.selectNodeContents(ta);
+    const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+    alert('Не получилось автоматически. Команда выделена — нажми Cmd/Ctrl+C, затем вставь в SSH роутера.');
+  };
+  // navigator.clipboard работает только в HTTPS / localhost. На http://IP:port — нет.
+  if(window.isSecureContext&&navigator.clipboard){
+    navigator.clipboard.writeText(txt).then(flash).catch(()=>execCopy(txt,flash,fail));
+  } else {
+    execCopy(txt,flash,fail);
+  }
+}
+function execCopy(txt,ok,fail){
+  const ta=document.createElement('textarea');
+  ta.value=txt;ta.style.position='fixed';ta.style.top='0';ta.style.left='0';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.focus();ta.select();
+  let okv=false;
+  try{okv=document.execCommand('copy');}catch(e){okv=false;}
+  document.body.removeChild(ta);
+  okv?ok():fail();
 }
 async function applyTunnelUrl(){
   if(!_tunnelRouterId)return;

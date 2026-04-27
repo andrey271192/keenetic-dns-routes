@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import secrets
 import socket
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -259,12 +262,10 @@ async def patch_router(rid: str, b: PatchRouterBody, x_admin_password: str = Hea
 
 @app.get("/api/routers/{rid}/tunnel-cmd")
 async def tunnel_cmd(rid: str, x_admin_password: str = Header("")):
-    """Назначить порт тоннеля и вернуть команду установки для роутера."""
+    """Назначить порт тоннеля и вернуть команду установки для роутера (SSH-ключ, без sshpass)."""
     _chk(x_admin_password)
     if not config.VPS_SSH_HOST:
         raise HTTPException(400, "VPS_SSH_HOST не задан в .env — укажи публичный IP/домен VPS")
-    if not config.VPS_SSH_PASS:
-        raise HTTPException(400, "VPS_SSH_PASS не задан в .env — укажи пароль SSH для VPS")
 
     cur = load_store()
     routers = list(cur.get("routers") or [])
@@ -283,38 +284,68 @@ async def tunnel_cmd(rid: str, x_admin_password: str = Header("")):
         while port in used:
             port += 1
         r["tunnel_port"] = port
-        routers[idx] = r
-        cur["routers"] = routers
-        save_store(cur)
+
+    # Одноразовый токен регистрации pubkey (10 мин)
+    reg_token = secrets.token_urlsafe(32)
+    r["tunnel_reg_token"] = reg_token
+    r["tunnel_reg_token_exp"] = int(time.time()) + 600
+
+    routers[idx] = r
+    cur["routers"] = routers
+    save_store(cur)
 
     vps_host = config.VPS_SSH_HOST
     vps_port = config.VPS_SSH_PORT
     vps_user = config.VPS_SSH_USER
-    vps_pass = config.VPS_SSH_PASS.replace("'", "'\\''")
+    http_url = f"http://{vps_host}:{config.PORT}"
 
     cmd = (
         f"export PATH=\"/opt/bin:/opt/sbin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH\"\n\n"
-        f"# Установить зависимости (autossh, sshpass, cronie для watchdog)\n"
-        f"opkg install autossh sshpass cronie 2>/dev/null; true\n"
-        f"/opt/etc/init.d/S10crond start 2>/dev/null; true\n\n"
-        f"# Создать скрипт тоннеля\n"
+        f"# 1. Зависимости (sshpass/cronie не нужны — авторизуемся по ключу)\n"
+        f"opkg install autossh openssh-client openssh-keygen 2>/dev/null; true\n\n"
+        f"# 2. Сгенерировать SSH-ключ для тоннеля (один раз)\n"
+        f"mkdir -p /opt/etc\n"
+        f"[ -f /opt/etc/kdns_tunnel_key ] || ssh-keygen -t ed25519 -f /opt/etc/kdns_tunnel_key -N '' -C 'kdns-tunnel-{rid}'\n\n"
+        f"# 3. Зарегистрировать публичный ключ на VPS (одноразовый токен, действителен 10 мин)\n"
+        f"curl -fsS -X POST '{http_url}/api/routers/{rid}/tunnel-register-key?token={reg_token}' \\\n"
+        f"  -H 'Content-Type: text/plain' \\\n"
+        f"  --data-binary @/opt/etc/kdns_tunnel_key.pub \\\n"
+        f"  || {{ echo 'ОШИБКА: не удалось зарегистрировать ключ — проверь VPS_SSH_HOST и доступность {http_url}'; exit 1; }}\n"
+        f"echo\n\n"
+        f"# 4. Скрипт тоннеля\n"
         f"cat > /opt/bin/kdns_tunnel.sh << 'ENDSCRIPT'\n"
         f"#!/bin/sh\n"
         f"PATH=\"/opt/bin:/opt/sbin:/bin:/sbin:/usr/bin:/usr/sbin:$PATH\"\n"
-        f"exec sshpass -p '{vps_pass}' autossh -M 0 \\\n"
+        f"exec autossh -M 0 \\\n"
+        f"  -i /opt/etc/kdns_tunnel_key \\\n"
         f"  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\\n"
         f"  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \\\n"
+        f"  -o ExitOnForwardFailure=yes -o IdentitiesOnly=yes \\\n"
         f"  -N -R {port}:localhost:81 {vps_user}@{vps_host} -p {vps_port}\n"
         f"ENDSCRIPT\n"
         f"chmod +x /opt/bin/kdns_tunnel.sh\n\n"
-        f"# Watchdog через cron: перезапуск каждые 3 мин если не работает\n"
-        f"(crontab -l 2>/dev/null | grep -v kdns_tunnel; "
-        f"echo '*/3 * * * * killall -0 autossh 2>/dev/null || /opt/bin/kdns_tunnel.sh &') | crontab -\n\n"
-        f"# Запустить сейчас\n"
+        f"# 5. Автозапуск при загрузке роутера через Entware init.d\n"
+        f"cat > /opt/etc/init.d/S99kdns_tunnel << 'ENDINIT'\n"
+        f"#!/bin/sh\n"
+        f"case \"$1\" in\n"
+        f"  start) killall -0 autossh 2>/dev/null || nohup /opt/bin/kdns_tunnel.sh >/dev/null 2>&1 & ;;\n"
+        f"  stop) killall autossh 2>/dev/null ;;\n"
+        f"  restart) killall autossh 2>/dev/null; sleep 1; nohup /opt/bin/kdns_tunnel.sh >/dev/null 2>&1 & ;;\n"
+        f"esac\n"
+        f"ENDINIT\n"
+        f"chmod +x /opt/etc/init.d/S99kdns_tunnel\n\n"
+        f"# 6. Запустить тоннель\n"
         f"killall autossh 2>/dev/null; sleep 1\n"
         f"nohup /opt/bin/kdns_tunnel.sh >/dev/null 2>&1 &\n\n"
-        f"echo \"Тоннель запущен: порт 81 → VPS:{port}\"\n"
-        f"echo \"URL для платформы: http://localhost:{port}\""
+        f"sleep 3\n"
+        f"if killall -0 autossh 2>/dev/null; then\n"
+        f"  echo 'Тоннель запущен: localhost:81 на роутере → VPS:{port}'\n"
+        f"  echo 'URL для платформы: http://localhost:{port}'\n"
+        f"  echo 'Теперь нажми «⟳ Проверить связь» в модалке.'\n"
+        f"else\n"
+        f"  echo 'ОШИБКА: тоннель не поднялся. Проверь: ssh -i /opt/etc/kdns_tunnel_key {vps_user}@{vps_host}'\n"
+        f"  exit 1\n"
+        f"fi"
     )
 
     return {
@@ -322,6 +353,64 @@ async def tunnel_cmd(rid: str, x_admin_password: str = Header("")):
         "rci_url": f"http://localhost:{port}",
         "cmd": cmd,
     }
+
+
+@app.post("/api/routers/{rid}/tunnel-register-key")
+async def tunnel_register_key(rid: str, token: str, request: Request):
+    """Принять SSH-публичный ключ от роутера и добавить в authorized_keys VPS.
+
+    Авторизация — одноразовый токен из /tunnel-cmd (без admin password — роутер его не знает).
+    """
+    cur = load_store()
+    routers = list(cur.get("routers") or [])
+    idx = next((i for i, x in enumerate(routers) if x.get("id") == rid), -1)
+    if idx < 0:
+        raise HTTPException(404, "Роутер не найден")
+    r = dict(routers[idx])
+
+    saved = r.get("tunnel_reg_token")
+    exp = int(r.get("tunnel_reg_token_exp") or 0)
+    if not saved or not secrets.compare_digest(saved, token or ""):
+        raise HTTPException(403, "Неверный или израсходованный токен регистрации")
+    if time.time() > exp:
+        raise HTTPException(403, "Токен истёк (10 мин). Открой модалку «Тоннель» заново.")
+
+    body = await request.body()
+    pubkey = body.decode("utf-8", errors="replace").strip()
+    if not pubkey or len(pubkey) > 4096 or "\n" in pubkey or "\r" in pubkey:
+        raise HTTPException(400, "Некорректный формат SSH-ключа")
+    if not re.match(
+        r"^(ssh-(rsa|ed25519|dss)|ecdsa-sha2-\S+|sk-\S+) [A-Za-z0-9+/=]+( .*)?$",
+        pubkey,
+    ):
+        raise HTTPException(400, "Не похоже на SSH-публичный ключ")
+
+    # Добавить в authorized_keys пользователя, под которым работает сервис
+    # (обычно root, т.к. systemctl restart требует root)
+    auth_dir = Path.home() / ".ssh"
+    auth_dir.mkdir(mode=0o700, exist_ok=True)
+    auth_path = auth_dir / "authorized_keys"
+    comment = f"kdns-tunnel-{rid}"
+    lines: list[str] = []
+    if auth_path.exists():
+        lines = [l for l in auth_path.read_text().splitlines() if comment not in l and l.strip()]
+    lines.append(pubkey)
+    auth_path.write_text("\n".join(lines) + "\n")
+    auth_path.chmod(0o600)
+    try:
+        auth_dir.chmod(0o700)
+    except OSError:
+        pass
+
+    # Токен использован — удалить
+    r.pop("tunnel_reg_token", None)
+    r.pop("tunnel_reg_token_exp", None)
+    routers[idx] = r
+    cur["routers"] = routers
+    save_store(cur)
+
+    logger.info("tunnel-register-key rid=%s host=%s", rid, request.client.host if request.client else "?")
+    return {"ok": True, "message": f"Ключ {comment} добавлен в {auth_path}"}
 
 
 @app.delete("/api/routers/{rid}/tunnel")
