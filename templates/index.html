@@ -434,30 +434,26 @@ function closeTunnelModal(){
   _tunnelRouterId=null;
 }
 function copyTunnelCmd(){
-  const txt=document.getElementById('tunnel-cmd-text').textContent;
+  const el=document.getElementById('tunnel-cmd-text');
+  const txt=el.textContent;
   const btn=(typeof event!=='undefined'&&event&&event.target)?event.target:document.querySelector('button[onclick="copyTunnelCmd()"]');
-  const flash=()=>{if(btn){const o=btn.textContent;btn.textContent='✓ Скопировано';setTimeout(()=>{btn.textContent=o;},2000);}};
-  const fail=()=>{
-    const ta=document.getElementById('tunnel-cmd-text');
-    const r=document.createRange();r.selectNodeContents(ta);
-    const s=window.getSelection();s.removeAllRanges();s.addRange(r);
-    alert('Не получилось автоматически. Команда выделена — нажми Cmd/Ctrl+C, затем вставь в SSH роутера.');
-  };
-  // navigator.clipboard работает только в HTTPS / localhost. На http://IP:port — нет.
+  const flash=(t)=>{if(btn){const o=btn.textContent;btn.textContent=t||'✓ Скопировано';setTimeout(()=>{btn.textContent=o;},1800);}};
+  // 1) HTTPS: современный API
   if(window.isSecureContext&&navigator.clipboard){
-    navigator.clipboard.writeText(txt).then(flash).catch(()=>execCopy(txt,flash,fail));
-  } else {
-    execCopy(txt,flash,fail);
+    navigator.clipboard.writeText(txt).then(()=>flash()).catch(selectFallback);
+    return;
   }
-}
-function execCopy(txt,ok,fail){
-  const ta=document.createElement('textarea');
-  ta.value=txt;ta.style.position='fixed';ta.style.top='0';ta.style.left='0';ta.style.opacity='0';
-  document.body.appendChild(ta);ta.focus();ta.select();
-  let okv=false;
-  try{okv=document.execCommand('copy');}catch(e){okv=false;}
-  document.body.removeChild(ta);
-  okv?ok():fail();
+  selectFallback();
+  function selectFallback(){
+    // 2) Выделить on-page контент и попытаться execCommand('copy')
+    const r=document.createRange();r.selectNodeContents(el);
+    const s=window.getSelection();s.removeAllRanges();s.addRange(r);
+    let ok=false;
+    try{ok=document.execCommand('copy');}catch(e){ok=false;}
+    if(ok){flash();setTimeout(()=>s.removeAllRanges(),1500);return;}
+    // 3) Не получилось — оставить выделенным, дать пользователю Cmd+C
+    flash('Выдели команду и нажми Cmd/Ctrl+C');
+  }
 }
 async function applyTunnelUrl(){
   if(!_tunnelRouterId)return;
