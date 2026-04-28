@@ -418,9 +418,16 @@ chmod +x /opt/bin/kdns_tun
 cat > /opt/etc/init.d/S99kdns_tun <<'INITEOF'
 #!/bin/sh
 case "$1" in
-  start)   killall -0 autossh 2>/dev/null || ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & ) ;;
+  start)
+    killall -0 autossh 2>/dev/null && exit 0
+    /opt/sbin/start-stop-daemon -S -b -x /opt/bin/kdns_tun 2>/dev/null || \
+      ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )
+    ;;
   stop)    killall autossh 2>/dev/null ;;
-  restart) killall autossh 2>/dev/null; sleep 1; ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & ) ;;
+  restart) killall autossh 2>/dev/null; sleep 1
+    /opt/sbin/start-stop-daemon -S -b -x /opt/bin/kdns_tun 2>/dev/null || \
+      ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )
+    ;;
 esac
 INITEOF
 chmod +x /opt/etc/init.d/S99kdns_tun
@@ -429,8 +436,9 @@ echo '[4/4] Запуск...'
 killall autossh 2>/dev/null || true
 sleep 1
 rm -f /tmp/kdns_tun.log
-# Двойная защита: setsid если есть (полный отрыв от сессии), иначе subshell+nohup.
-if command -v setsid >/dev/null 2>&1; then
+if /opt/sbin/start-stop-daemon -S -b -x /opt/bin/kdns_tun 2>/dev/null; then
+  :
+elif command -v setsid >/dev/null 2>&1; then
   setsid /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 &
 else
   ( nohup /opt/bin/kdns_tun </dev/null >/dev/null 2>&1 & )
