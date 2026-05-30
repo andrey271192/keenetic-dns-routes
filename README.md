@@ -2,7 +2,7 @@
 
 Один список доменов в браузере — и он уезжает на все твои Keenetic сразу. Без HydraRoute Neo, без SSH: только встроенные **«Маршруты DNS»** и RCI API.
 
-> **Поддержать проект:** [Boosty](https://boosty.to/andrey27/donate) · [СБП / Ozon Bank](https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798) · Telegram: [@Iot_andrey](https://t.me/Iot_andrey)
+> **Поддержать проект:** [Boosty](https://boosty.to/andrey27/donate) · [СБП / Ozon Bank](https://finance.ozon.ru/apps/sbp/ozonbankpay/019dc200-2a5d-7931-a619-782d285f6798) · Telegram: [@PCAdministration](https://t.me/PCAdministration)
 
 ---
 
